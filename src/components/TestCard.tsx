@@ -8,18 +8,26 @@ interface TestCardProps {
   onStartTest: (test: MockTest) => void;
   isPremiumUser: boolean;
   onReqPremiumUpgrade: () => void;
+  purchasedSeries?: string[];
 }
 
 export default function TestCard({
   test,
   onStartTest,
   isPremiumUser,
-  onReqPremiumUpgrade
+  onReqPremiumUpgrade,
+  purchasedSeries = []
 }: TestCardProps) {
-  const isLocked = false;
+  // A test is locked if it is marked premium and user doesn't have site-wide premium membership,
+  // AND the user hasn't purchased the specific series that this test belongs to.
+  const isLocked = test.isPremium && !isPremiumUser && !(test.postId && purchasedSeries.includes(test.postId));
 
   const handleAction = () => {
-    onStartTest(test);
+    if (isLocked) {
+      onReqPremiumUpgrade();
+    } else {
+      onStartTest(test);
+    }
   };
 
   // Select stylized avatars or gradients based on test type

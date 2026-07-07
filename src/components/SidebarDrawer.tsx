@@ -4,6 +4,7 @@ import {
   FileText, Briefcase, ChevronRight, LogIn, LogOut, Shield, Settings, HeadphonesIcon, Bell, Zap
 } from 'lucide-react';
 import { ViewType } from '../types';
+import { safeSessionStorage } from '../lib/storage';
 
 interface SidebarDrawerProps {
   isOpen: boolean;
@@ -242,6 +243,39 @@ export default function SidebarDrawer({
                  <FileText className="w-[18px] h-[18px] stroke-[2.5] text-slate-400" />
                  <span>পরীক্ষার সিলেবাস</span>
                </div>
+            </button>
+          </div>
+
+          {/* Admin Section */}
+          <div className="space-y-1 pt-3 border-t border-slate-100 dark:border-slate-800">
+            <span className="text-[11px] text-slate-400 font-bold mb-2 block px-2">অ্যাডমিন সেকশন</span>
+            <button
+               onClick={() => {
+                 const isAdminLoggedIn = safeSessionStorage.getItem('admin_auth_token') === 'true';
+                 if (isAdminLoggedIn) {
+                   setView('admin');
+                   try {
+                     window.history.pushState({}, document.title, '/admin/dashboard');
+                   } catch (e) {
+                     console.warn(e);
+                   }
+                 } else {
+                   setView('admin-login');
+                   try {
+                     window.history.pushState({}, document.title, '/admin');
+                   } catch (e) {
+                     console.warn(e);
+                   }
+                 }
+                 onClose();
+               }}
+               className="w-full flex items-center justify-between px-3 py-3 rounded-[12px] text-[13.5px] font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/20 transition-all cursor-pointer"
+            >
+               <div className="flex items-center gap-3">
+                 <Shield className="w-[18px] h-[18px] stroke-[2.5] text-amber-500" />
+                 <span>অ্যাডমিন প্যানেল (Admin)</span>
+               </div>
+               <ChevronRight className="w-4 h-4 text-slate-400" />
             </button>
           </div>
 

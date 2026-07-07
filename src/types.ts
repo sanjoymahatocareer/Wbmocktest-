@@ -30,21 +30,33 @@ export interface PostName {
   fields?: Record<string, any>;
   faqs?: { question: string; answer: string }[];
   tables?: { title: string; headers: string[]; rows: string[][] }[];
+  // Mock Test Series Pricing and Validity properties
+  regularPrice?: number;
+  salePrice?: number;
+  currency?: string;
+  validityDays?: number;
+  isPremiumSeries?: boolean;
+  status?: 'draft' | 'published';
 }
 
 export interface MockTest {
   id: string;
   postId?: string; // References PostName (new hierarchy)
+  categoryId?: string; // References ExamCategory (new hierarchy)
   title: string;
   bengaliTitle: string;
   examType: string; // kept for backward compatibility
   examTypeBengali: string; // kept for backward compatibility
+  testNumber?: number;
   totalQuestions: number;
   totalMarks: number;
   passingMarks?: number; // Passing marks
   durationMinutes: number;
   difficulty: 'সহজ' | 'মাঝারি' | 'কঠিন' | 'Easy' | 'Medium' | 'Hard';
   isPremium: boolean;
+  isPublished?: boolean;
+  negativeMarking?: string; // 'none' | '0.25' | '0.33' | '0.50'
+  subjectsDistribution?: { subject: string; questionCount: number; marksCount: number }[];
   questions: Question[];
 }
 
@@ -56,6 +68,8 @@ export interface ExamCategory {
   subtitle?: string;
   emoji?: string;
   gradientClass?: string;
+  slug?: string;
+  description?: string;
 }
 
 export interface JobNotification {
@@ -88,6 +102,8 @@ export interface TestResult {
     total: number;
   }[];
   date: string;
+  userEmail?: string;
+  passed?: boolean;
 }
 
 export interface SuccessStory {
@@ -99,7 +115,7 @@ export interface SuccessStory {
   avatarUrl: string;
 }
 
-export type ViewType = 'home' | 'mock-tests' | 'question-bank' | 'results' | 'profile' | 'test-running' | 'test-result' | 'admin' | 'study-plan' | 'premium' | 'job-list' | 'state-job-list' | 'job-details' | 'admin-login' | 'post-list' | 'news-details';
+export type ViewType = 'home' | 'mock-tests' | 'question-bank' | 'results' | 'profile' | 'test-running' | 'test-result' | 'admin' | 'study-plan' | 'premium' | 'job-list' | 'state-job-list' | 'job-details' | 'admin-login' | 'post-list' | 'news-details' | 'my-tests' | 'performance';
 
 export interface ActiveSubscription {
   userId: string;
@@ -126,3 +142,55 @@ export interface PaymentTransaction {
   expiryDate: string;
   createdAt: string;
 }
+
+export interface PaymentOrder {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  phone?: string;
+  seriesId: string;
+  amount: number;
+  currency: string;
+  status: 'PENDING' | 'PAID' | 'FAILED';
+  couponCode?: string;
+  discountAmount?: number;
+  cashfreeOrderId?: string;
+  paymentSessionId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PurchaseEntitlement {
+  id: string; // PUR_userId_seriesId
+  userId: string;
+  seriesId: string;
+  orderId: string;
+  purchaseStatus: 'active' | 'expired' | 'cancelled';
+  accessStartDate: string;
+  accessEndDate: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CouponCode {
+  id: string; // Coupon code itself uppercase
+  code: string;
+  discountValue: number;
+  discountType: 'percentage' | 'flat';
+  minOrderAmount?: number;
+  expiryDate?: string;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface AuditLog {
+  id: string;
+  action: 'grant_access' | 'cancel_access' | 'edit_settings';
+  adminId: string;
+  targetUserId: string;
+  targetSeriesId?: string;
+  details: string;
+  timestamp: string;
+}
+

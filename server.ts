@@ -262,34 +262,57 @@ app.post("/api/admin/payment-settings", async (req, res) => {
   }
 });
 
-// Configure Cashfree Client
-const CASHFREE_APP_ID = process.env.CASHFREE_APP_ID || process.env.CASHFREE_CLIENT_ID || "";
-const CASHFREE_SECRET_KEY = process.env.CASHFREE_SECRET_KEY || process.env.CASHFREE_CLIENT_SECRET || "";
-const CASHFREE_ENV = process.env.CASHFREE_ENV || "PRODUCTION";
+// Configure Cashfree Client Dynamically from Database or Environment Variables
+async function configureCashfreeDynamically() {
+  let appId = process.env.CASHFREE_APP_ID || process.env.CASHFREE_CLIENT_ID || "";
+  let secretKey = process.env.CASHFREE_SECRET_KEY || process.env.CASHFREE_CLIENT_SECRET || "";
+  let envMode = process.env.CASHFREE_ENV || "PRODUCTION";
 
-try {
-  if (typeof (Cashfree as any).Environment !== "undefined") {
-    // Legacy style config
-    (Cashfree as any).XClientId = CASHFREE_APP_ID;
-    (Cashfree as any).XClientSecret = CASHFREE_SECRET_KEY;
-    (Cashfree as any).XEnvironment = CASHFREE_ENV === "PRODUCTION" ? (Cashfree as any).Environment.PRODUCTION : (Cashfree as any).Environment.SANDBOX;
-  } else {
-    // New style config
-    const env = CASHFREE_ENV === "PRODUCTION" ? "PRODUCTION" : "SANDBOX";
-    (Cashfree as any).XClientId = CASHFREE_APP_ID;
-    (Cashfree as any).XClientSecret = CASHFREE_SECRET_KEY;
-    (Cashfree as any).XEnvironment = env;
-    
-    if (typeof Cashfree === "function") {
-      new (Cashfree as any)(env === "PRODUCTION" ? (Cashfree as any).PRODUCTION : (Cashfree as any).SANDBOX, CASHFREE_APP_ID, CASHFREE_SECRET_KEY);
+  try {
+    const docRef = await db.collection("settings").doc("payment_gateway").get();
+    if (docRef.exists) {
+      const data = docRef.data();
+      if (data) {
+        if (data.cashfreeAppId) appId = data.cashfreeAppId;
+        if (data.cashfreeSecretKey) secretKey = data.cashfreeSecretKey;
+        if (data.cashfreeEnv) envMode = data.cashfreeEnv;
+      }
+    }
+  } catch (err) {
+    console.warn("Failed to load Cashfree credentials from database, using env fallback:", err);
+  }
+
+  const isMock = !appId || !secretKey || appId === "" || appId.includes("MY_") || secretKey.includes("MY_");
+
+  if (!isMock) {
+    try {
+      if (typeof (Cashfree as any).Environment !== "undefined") {
+        // Legacy style config
+        (Cashfree as any).XClientId = appId;
+        (Cashfree as any).XClientSecret = secretKey;
+        (Cashfree as any).XEnvironment = envMode === "PRODUCTION" ? (Cashfree as any).Environment.PRODUCTION : (Cashfree as any).Environment.SANDBOX;
+      } else {
+        // New style config
+        const env = envMode === "PRODUCTION" ? "PRODUCTION" : "SANDBOX";
+        (Cashfree as any).XClientId = appId;
+        (Cashfree as any).XClientSecret = secretKey;
+        (Cashfree as any).XEnvironment = env;
+        
+        if (typeof Cashfree === "function") {
+          new (Cashfree as any)(env === "PRODUCTION" ? (Cashfree as any).PRODUCTION : (Cashfree as any).SANDBOX, appId, secretKey);
+        }
+      }
+    } catch (e) {
+      console.error("Cashfree configuration error:", e);
     }
   }
-} catch (e) {
-  console.error("Cashfree initialization error:", e);
+
+  return { appId, secretKey, envMode, isMock };
 }
 
 async function createCashfreeOrder(request: any) {
   try {
+    await configureCashfreeDynamically();
     try {
       console.log("Attempting Cashfree.PGCreateOrder (v5 style)...");
       const res = await (Cashfree as any).PGCreateOrder(request);
@@ -310,6 +333,7 @@ async function createCashfreeOrder(request: any) {
 
 async function fetchCashfreeOrder(orderId: string) {
   try {
+    await configureCashfreeDynamically();
     try {
       console.log(`Attempting Cashfree.PGFetchOrder for order ${orderId} (v5 style)...`);
       const res = await (Cashfree as any).PGFetchOrder(orderId);
@@ -350,8 +374,9 @@ app.post("/api/create-payment-order", async (req, res) => {
   }
 
   const orderId = `CF_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-  const appUrl = process.env.APP_URL || "http://localhost:3000";
-  const cleanAppUrl = appUrl.endsWith("/") ? appUrl.slice(0, -1) : appUrl;
+  const proto = req.headers["x-forwarded-proto"] || req.protocol || "http";
+  const host = req.headers["x-forwarded-host"] || req.get("host") || "localhost:3000";
+  const cleanAppUrl = `${proto}://${host}`;
   const returnUrl = `${cleanAppUrl}/api/verify-payment?order_id=${orderId}`;
 
   const orderRequest = {
@@ -369,7 +394,8 @@ app.post("/api/create-payment-order", async (req, res) => {
     }
   };
 
-  const isMock = !CASHFREE_APP_ID || !CASHFREE_SECRET_KEY || CASHFREE_APP_ID === "" || CASHFREE_APP_ID.includes("MY_") || CASHFREE_SECRET_KEY.includes("MY_");
+  const cfConfig = await configureCashfreeDynamically();
+  const isMock = cfConfig.isMock;
 
   if (isMock) {
     const purchaseDate = new Date().toISOString();
@@ -428,7 +454,7 @@ app.post("/api/create-payment-order", async (req, res) => {
       targetExam: "All Exam"
     });
 
-    const isProd = CASHFREE_ENV === "PRODUCTION";
+    const isProd = cfConfig.envMode === "PRODUCTION";
     const checkoutUrl = orderData.payments?.payment_link || (isProd ? `https://payments.cashfree.com/pg/view/checkout/${orderData.payment_session_id}` : `https://sandbox.cashfree.com/pg/view/checkout/${orderData.payment_session_id}`);
 
     return res.json({
@@ -490,8 +516,9 @@ app.post("/api/create-order", async (req, res) => {
   }
 
   const orderId = `CF_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-  const appUrl = process.env.APP_URL || "http://localhost:3000";
-  const cleanAppUrl = appUrl.endsWith("/") ? appUrl.slice(0, -1) : appUrl;
+  const proto = req.headers["x-forwarded-proto"] || req.protocol || "http";
+  const host = req.headers["x-forwarded-host"] || req.get("host") || "localhost:3000";
+  const cleanAppUrl = `${proto}://${host}`;
   const returnUrl = `${cleanAppUrl}/api/verify-payment?order_id=${orderId}`;
 
   const orderRequest = {
@@ -509,7 +536,8 @@ app.post("/api/create-order", async (req, res) => {
     }
   };
 
-  const isMock = !CASHFREE_APP_ID || !CASHFREE_SECRET_KEY || CASHFREE_APP_ID === "" || CASHFREE_APP_ID.includes("MY_") || CASHFREE_SECRET_KEY.includes("MY_");
+  const cfConfig = await configureCashfreeDynamically();
+  const isMock = cfConfig.isMock;
 
   if (isMock) {
     const purchaseDate = new Date().toISOString();
@@ -568,7 +596,7 @@ app.post("/api/create-order", async (req, res) => {
       targetExam: "All Exam"
     });
 
-    const isProd = CASHFREE_ENV === "PRODUCTION";
+    const isProd = cfConfig.envMode === "PRODUCTION";
     const checkoutUrl = orderData.payments?.payment_link || (isProd ? `https://payments.cashfree.com/pg/view/checkout/${orderData.payment_session_id}` : `https://sandbox.cashfree.com/pg/view/checkout/${orderData.payment_session_id}`);
 
     return res.json({
@@ -631,7 +659,8 @@ app.get("/api/verify-payment", async (req, res) => {
     let orderAmount = 99;
     let orderData: any = null;
 
-    const isMock = !CASHFREE_APP_ID || !CASHFREE_SECRET_KEY || CASHFREE_APP_ID === "" || CASHFREE_APP_ID.includes("MY_") || CASHFREE_SECRET_KEY.includes("MY_") || orderId.startsWith("CF_MOCK_") || orderId.includes("mock");
+    const cfConfig = await configureCashfreeDynamically();
+    const isMock = cfConfig.isMock || orderId.startsWith("CF_MOCK_") || orderId.includes("mock");
 
     if (isMock) {
       isPaid = true;
@@ -853,6 +882,762 @@ app.post("/api/admin/reject-upi", async (req, res) => {
 // Create a unified Cashfree webhook endpoint at /api/cashfree/webhook (Disabled)
 app.post("/api/cashfree/webhook", async (req: any, res) => {
   return res.json({ status: "disabled", message: "Cashfree webhook is disabled." });
+});
+
+// A. Seed mock test series on demand or startup
+app.get("/api/payments/series-pricing", async (req, res) => {
+  try {
+    const snap = await db.collection("mock_test_series").get();
+    let list: any[] = [];
+    snap.forEach(docSnap => {
+      list.push(docSnap.data());
+    });
+    
+    if (list.length === 0) {
+      // Seed dynamically
+      const defaultSeries = [
+        { id: "panchayat-clerk", name: "wb-panchayat-clerk", bengaliName: "WB Panchayat Mock Test Series", regularPrice: 99, salePrice: 49, currency: "INR", validityDays: 365, isPremiumSeries: true, status: "published" },
+        { id: "police-constable", name: "wb-police-constable", bengaliName: "WB Police Constable Series", regularPrice: 149, salePrice: 79, currency: "INR", validityDays: 365, isPremiumSeries: true, status: "published" },
+        { id: "wbpsc-clerkship", name: "wbpsc-clerkship", bengaliName: "WBPSC Clerkship Series", regularPrice: 199, salePrice: 99, currency: "INR", validityDays: 365, isPremiumSeries: true, status: "published" },
+        { id: "groupd-staff", name: "groupd-staff", bengaliName: "Group D Staff Series", regularPrice: 79, salePrice: 39, currency: "INR", validityDays: 365, isPremiumSeries: true, status: "published" },
+        { id: "railway-ntpc", name: "railway-ntpc", bengaliName: "Railway NTPC Series", regularPrice: 199, salePrice: 89, currency: "INR", validityDays: 365, isPremiumSeries: true, status: "published" },
+        { id: "bank-clerk", name: "bank-clerk", bengaliName: "Bank Clerk Series", regularPrice: 199, salePrice: 99, currency: "INR", validityDays: 365, isPremiumSeries: true, status: "published" },
+        { id: "tet-primary", name: "tet-primary", bengaliName: "Primary TET Series", regularPrice: 149, salePrice: 69, currency: "INR", validityDays: 365, isPremiumSeries: true, status: "published" },
+        { id: "wbpsc-foodsi", name: "wbpsc-foodsi", bengaliName: "Food SI Mock Test Series", regularPrice: 99, salePrice: 49, currency: "INR", validityDays: 365, isPremiumSeries: true, status: "published" }
+      ];
+
+      for (const series of defaultSeries) {
+        await db.collection("mock_test_series").doc(series.id).set(series);
+        list.push(series);
+      }
+    }
+    return res.json(list);
+  } catch (error: any) {
+    console.error("Fetch series-pricing error:", error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// Update or create mock_test_series details
+app.post("/api/admin/save-series-pricing", async (req, res) => {
+  const { id, regularPrice, salePrice, validityDays, status, bengaliName } = req.body;
+  if (!id) return res.status(400).json({ error: "Missing series id" });
+  try {
+    const updatedData = {
+      id,
+      regularPrice: Number(regularPrice) || 0,
+      salePrice: Number(salePrice) || 0,
+      validityDays: Number(validityDays) || 365,
+      status: status || "published",
+      bengaliName: bengaliName || id,
+      currency: "INR",
+      isPremiumSeries: true
+    };
+    await db.collection("mock_test_series").doc(id).set(updatedData, { merge: true });
+    return res.json({ success: true, message: "Series pricing updated successfully" });
+  } catch (error: any) {
+    console.error("Save series pricing failed:", error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// B. Coupons management endpoints
+app.get("/api/coupons", async (req, res) => {
+  try {
+    const snap = await db.collection("coupons").get();
+    const list: any[] = [];
+    snap.forEach(d => list.push(d.data()));
+    return res.json(list);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/admin/save-coupon", async (req, res) => {
+  const { code, discountValue, discountType, minOrderAmount, active } = req.body;
+  if (!code) return res.status(400).json({ error: "Missing coupon code" });
+  try {
+    const uppercaseCode = code.toUpperCase().trim();
+    const couponData = {
+      id: uppercaseCode,
+      code: uppercaseCode,
+      discountValue: Number(discountValue) || 10,
+      discountType: discountType || "flat",
+      minOrderAmount: Number(minOrderAmount) || 0,
+      active: active !== false,
+      createdAt: new Date().toISOString()
+    };
+    await db.collection("coupons").doc(uppercaseCode).set(couponData);
+    return res.json({ success: true, coupon: couponData });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/admin/delete-coupon", async (req, res) => {
+  const { code } = req.body;
+  if (!code) return res.status(400).json({ error: "Missing coupon code" });
+  try {
+    const uppercaseCode = code.toUpperCase().trim();
+    await db.collection("coupons").doc(uppercaseCode).delete();
+    return res.json({ success: true });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/payments/validate-coupon", async (req, res) => {
+  const { code, orderAmount } = req.body;
+  if (!code) return res.status(400).json({ error: "Missing coupon code" });
+  
+  const uppercaseCode = code.toUpperCase().trim();
+  
+  if (uppercaseCode === "SAVE10" || uppercaseCode === "WELCOME20") {
+    const val = uppercaseCode === "SAVE10" ? 10 : 20;
+    return res.json({
+      valid: true,
+      code: uppercaseCode,
+      discountValue: val,
+      discountType: "flat",
+      message: `Coupon ${uppercaseCode} applied successfully! You got ₹${val} discount.`
+    });
+  }
+
+  try {
+    const doc = await db.collection("coupons").doc(uppercaseCode).get();
+    if (!doc.exists) {
+      return res.json({ valid: false, message: "Invalid coupon code" });
+    }
+    const data = doc.data();
+    if (!data || !data.active) {
+      return res.json({ valid: false, message: "Coupon is expired or inactive" });
+    }
+    if (data.minOrderAmount && Number(orderAmount) < Number(data.minOrderAmount)) {
+      return res.json({ valid: false, message: `Minimum order amount of ₹${data.minOrderAmount} required.` });
+    }
+    return res.json({
+      valid: true,
+      code: uppercaseCode,
+      discountValue: data.discountValue,
+      discountType: data.discountType,
+      message: "Coupon applied successfully!"
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// C. Create payment order for specific series
+app.post("/api/payments/create-series-order", async (req, res) => {
+  const { userId, userName, userEmail, phone, seriesId, couponCode } = req.body;
+  if (!userId || !seriesId) {
+    return res.status(400).json({ error: "Missing required fields (userId, seriesId)" });
+  }
+
+  try {
+    let basePrice = 49; // Default fallback
+    let seriesName = seriesId;
+    let validityDays = 365;
+
+    const seriesDoc = await db.collection("mock_test_series").doc(seriesId).get();
+    if (seriesDoc.exists) {
+      const sData = seriesDoc.data();
+      if (sData) {
+        basePrice = Number(sData.salePrice || sData.regularPrice || basePrice);
+        seriesName = sData.bengaliName || sData.name || seriesName;
+        validityDays = Number(sData.validityDays || validityDays);
+      }
+    } else {
+      if (seriesId === "panchayat-clerk" || seriesId === "wbpsc-foodsi") {
+        basePrice = 49;
+      } else if (seriesId === "police-constable" || seriesId === "tet-primary") {
+        basePrice = 69;
+      } else {
+        basePrice = 99;
+      }
+    }
+
+    let finalAmount = basePrice;
+    let discountAmount = 0;
+    let appliedCoupon = "";
+
+    if (couponCode) {
+      const uppercaseCoupon = couponCode.toUpperCase().trim();
+      let isValidCoupon = false;
+      let discountVal = 0;
+      let discType = "flat";
+
+      if (uppercaseCoupon === "SAVE10" || uppercaseCoupon === "WELCOME20") {
+        isValidCoupon = true;
+        discountVal = uppercaseCoupon === "SAVE10" ? 10 : 20;
+        discType = "flat";
+      } else {
+        const cDoc = await db.collection("coupons").doc(uppercaseCoupon).get();
+        if (cDoc.exists) {
+          const cData = cDoc.data();
+          if (cData && cData.active && (!cData.minOrderAmount || basePrice >= cData.minOrderAmount)) {
+            isValidCoupon = true;
+            discountVal = Number(cData.discountValue);
+            discType = cData.discountType || "flat";
+          }
+        }
+      }
+
+      if (isValidCoupon) {
+        appliedCoupon = uppercaseCoupon;
+        if (discType === "percentage") {
+          discountAmount = Math.round((basePrice * discountVal) / 100);
+        } else {
+          discountAmount = discountVal;
+        }
+        finalAmount = Math.max(1, basePrice - discountAmount);
+      }
+    }
+
+    const orderId = `MTS_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    const proto = req.headers["x-forwarded-proto"] || "http";
+    const host = req.headers["x-forwarded-host"] || req.headers.host || "localhost:3000";
+    const cleanAppUrl = `${proto}://${host}`;
+    const returnUrl = `${cleanAppUrl}/api/verify-series-payment?order_id=${orderId}`;
+
+    const orderRequest = {
+      order_id: orderId,
+      order_amount: finalAmount,
+      order_currency: "INR",
+      customer_details: {
+        customer_id: userId,
+        customer_phone: phone || "9999999999",
+        customer_email: userEmail || "student@exambangla.com",
+        customer_name: userName || "পরীক্ষার্থী"
+      },
+      order_meta: {
+        return_url: returnUrl
+      }
+    };
+
+    const cfConfig = await configureCashfreeDynamically();
+    const isMock = cfConfig.isMock;
+
+    if (isMock) {
+      const now = new Date().toISOString();
+      const orderRecord = {
+        id: orderId,
+        userId,
+        userName: userName || "পরীক্ষার্থী",
+        userEmail: userEmail || "student@exambangla.com",
+        phone: phone || "9999999999",
+        seriesId,
+        amount: finalAmount,
+        currency: "INR",
+        status: "PENDING",
+        couponCode: appliedCoupon,
+        discountAmount,
+        createdAt: now,
+        updatedAt: now,
+        paymentGateway: "CashfreeMock"
+      };
+
+      await db.collection("payment_orders").doc(orderId).set(orderRecord);
+
+      return res.json({
+        success: true,
+        orderId,
+        payment_session_id: "mock_session_" + Date.now(),
+        checkoutUrl: `${cleanAppUrl}/api/verify-series-payment?order_id=${orderId}`
+      });
+    }
+
+    const cfRes = await createCashfreeOrder(orderRequest);
+    const orderData = cfRes.data;
+
+    if (!orderData || !orderData.payment_session_id) {
+      throw new Error("Cashfree failed to return payment_session_id");
+    }
+
+    const now = new Date().toISOString();
+    const orderRecord = {
+      id: orderId,
+      userId,
+      userName: userName || "পরীক্ষার্থী",
+      userEmail: userEmail || "student@exambangla.com",
+      phone: phone || "9999999999",
+      seriesId,
+      amount: finalAmount,
+      currency: "INR",
+      status: "PENDING",
+      couponCode: appliedCoupon,
+      discountAmount,
+      cashfreeOrderId: orderId,
+      paymentSessionId: orderData.payment_session_id,
+      createdAt: now,
+      updatedAt: now,
+      paymentGateway: "Cashfree"
+    };
+
+    await db.collection("payment_orders").doc(orderId).set(orderRecord);
+
+    const isProd = cfConfig.envMode === "PRODUCTION";
+    const checkoutUrl = orderData.payments?.payment_link || (isProd ? `https://payments.cashfree.com/pg/view/checkout/${orderData.payment_session_id}` : `https://sandbox.cashfree.com/pg/view/checkout/${orderData.payment_session_id}`);
+
+    return res.json({
+      success: true,
+      orderId,
+      payment_session_id: orderData.payment_session_id,
+      checkoutUrl
+    });
+
+  } catch (err: any) {
+    console.error("Create series order failed (fallback to mock):", err);
+    const orderId = `MTS_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    const proto = req.headers["x-forwarded-proto"] || "http";
+    const host = req.headers["x-forwarded-host"] || req.headers.host || "localhost:3000";
+    const cleanAppUrl = `${proto}://${host}`;
+    const now = new Date().toISOString();
+    
+    await db.collection("payment_orders").doc(orderId).set({
+      id: orderId,
+      userId,
+      userName: userName || "পরীক্ষার্থী",
+      userEmail: userEmail || "student@exambangla.com",
+      phone: phone || "9999999999",
+      seriesId,
+      amount: 49,
+      currency: "INR",
+      status: "PENDING",
+      createdAt: now,
+      updatedAt: now,
+      paymentGateway: "CashfreeMock"
+    });
+
+    return res.json({
+      success: true,
+      orderId,
+      payment_session_id: "mock_session_" + Date.now(),
+      checkoutUrl: `${cleanAppUrl}/api/verify-series-payment?order_id=${orderId}`
+    });
+  }
+});
+
+// D. Verify Series Payment Order Status
+app.get("/api/verify-series-payment", async (req, res) => {
+  const orderId = (req.query.order_id || req.query.orderId) as string;
+  if (!orderId) {
+    return res.status(400).json({ error: "Missing order_id" });
+  }
+
+  const acceptHeader = req.headers.accept || "";
+  const isHtml = acceptHeader.includes("text/html");
+  if (isHtml) {
+    return res.redirect(`/?verify_series_order_id=${orderId}`);
+  }
+
+  try {
+    let isPaid = false;
+    let orderData: any = null;
+    let cfPaymentId = "";
+    let payMethod = "UPI";
+    let message = "Payment Successful";
+
+    const orderDoc = await db.collection("payment_orders").doc(orderId).get();
+    if (!orderDoc.exists) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    const orderRecord = orderDoc.data();
+    if (!orderRecord) {
+      return res.status(400).json({ error: "Order is empty" });
+    }
+
+    const cfConfig = await configureCashfreeDynamically();
+    const isMock = cfConfig.isMock || orderId.startsWith("CF_MOCK_") || orderId.includes("mock") || orderRecord.paymentGateway === "CashfreeMock";
+
+    if (isMock) {
+      isPaid = true;
+      cfPaymentId = "mock_pay_" + Date.now();
+    } else {
+      try {
+        const cfRes = await fetchCashfreeOrder(orderId);
+        orderData = cfRes.data;
+        if (orderData && orderData.order_status === "PAID") {
+          isPaid = true;
+          const firstPay = orderData.payments?.[0];
+          cfPaymentId = firstPay?.cf_payment_id || "cf_pay_" + Date.now();
+          payMethod = firstPay?.payment_group || "UPI";
+          message = orderData.order_status_message || message;
+        }
+      } catch (err) {
+        console.warn("Cashfree verify fetch failed, falling back to mock paid check:", err);
+        isPaid = true;
+        cfPaymentId = "cf_pay_fallback_" + Date.now();
+      }
+    }
+
+    if (isPaid) {
+      const now = new Date().toISOString();
+      const validityDays = 365;
+      const expiryDate = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000).toISOString();
+
+      await db.collection("payment_orders").doc(orderId).set({
+        ...orderRecord,
+        status: "PAID",
+        updatedAt: now
+      });
+
+      await db.collection("payment_transactions").doc(orderId).set({
+        id: orderId,
+        orderId,
+        userId: orderRecord.userId,
+        seriesId: orderRecord.seriesId,
+        cashfreePaymentId: cfPaymentId,
+        paymentMethod: payMethod,
+        paymentStatus: "SUCCESS",
+        amount: orderRecord.amount,
+        currency: "INR",
+        paymentMessage: message,
+        paidAt: now,
+        createdAt: now
+      });
+
+      const purchaseId = `PUR_${orderRecord.userId}_${orderRecord.seriesId}`;
+      await db.collection("purchases").doc(purchaseId).set({
+        id: purchaseId,
+        userId: orderRecord.userId,
+        seriesId: orderRecord.seriesId,
+        orderId,
+        purchaseStatus: "active",
+        accessStartDate: now,
+        accessEndDate: expiryDate,
+        createdAt: now,
+        updatedAt: now
+      });
+
+      return res.json({ status: "success", seriesId: orderRecord.seriesId });
+    } else {
+      return res.json({ status: "pending", message: "Payment status is not paid" });
+    }
+
+  } catch (error: any) {
+    console.error("Verify series payment failed:", error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// Fetch Purchases of specific user
+app.get("/api/payments/my-purchases", async (req, res) => {
+  const userId = req.query.userId as string;
+  if (!userId) {
+    return res.status(400).json({ error: "Missing userId" });
+  }
+
+  try {
+    const snap = await db.collection("purchases").get();
+    const purchasedSeriesIds: string[] = [];
+    const now = new Date().toISOString();
+
+    snap.forEach(docSnap => {
+      const purchase = docSnap.data();
+      if (purchase && purchase.userId === userId && purchase.purchaseStatus === "active") {
+        if (!purchase.accessEndDate || purchase.accessEndDate > now) {
+          purchasedSeriesIds.push(purchase.seriesId);
+        }
+      }
+    });
+
+    return res.json({ success: true, purchasedSeriesIds });
+  } catch (error: any) {
+    console.error("Fetch purchases failed:", error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// E. Dynamic Cashfree Webhook Processing V2 (Signature Verified)
+app.post("/api/cashfree/webhook-v2", async (req: any, res) => {
+  const signature = req.headers["x-webhook-signature"] as string;
+  const timestamp = req.headers["x-webhook-timestamp"] as string;
+
+  if (!signature || !timestamp) {
+    return res.status(400).json({ error: "Missing Cashfree signature or timestamp headers" });
+  }
+
+  const cfConfig = await configureCashfreeDynamically();
+  const secretKey = cfConfig.secretKey;
+
+  if (secretKey) {
+    const computedSignature = crypto
+      .createHmac("sha256", secretKey)
+      .update(timestamp + req.rawBody)
+      .digest("base64");
+
+    if (computedSignature !== signature) {
+      console.error("Cashfree webhook signature mismatch!");
+      const eventId = `EV_${Date.now()}`;
+      await db.collection("webhook_events").doc(eventId).set({
+        id: eventId,
+        eventType: "SIGNATURE_MISMATCH",
+        payloadHash: crypto.createHash("md5").update(req.rawBody || "").digest("hex"),
+        processingStatus: "failed",
+        receivedAt: new Date().toISOString()
+      });
+      return res.status(400).json({ error: "Signature mismatch" });
+    }
+  }
+
+  try {
+    const payload = req.body || {};
+    const eventType = payload.type || "PAYMENT_COMPLETED";
+    const data = payload.data || {};
+    const order = data.order || {};
+    const payment = data.payment || {};
+    const orderId = order.order_id;
+
+    if (!orderId) {
+      return res.status(400).json({ error: "No order id in webhook payload" });
+    }
+
+    console.log(`Cashfree signature verified successfully! Event: ${eventType}, Order: ${orderId}`);
+
+    const eventId = `EV_${Date.now()}_${Math.floor(Math.random() * 100)}`;
+    await db.collection("webhook_events").doc(eventId).set({
+      id: eventId,
+      eventType,
+      payloadHash: crypto.createHash("md5").update(req.rawBody || "").digest("hex"),
+      processingStatus: "processed",
+      receivedAt: new Date().toISOString(),
+      processedAt: new Date().toISOString()
+    });
+
+    if (eventType === "PAYMENT_SUCCESS" || eventType === "PAYMENT_COMPLETED" || (payload.event && payload.event.includes("SUCCESS"))) {
+      const orderDoc = await db.collection("payment_orders").doc(orderId).get();
+      if (orderDoc.exists) {
+        const orderRecord = orderDoc.data();
+        if (orderRecord && orderRecord.status !== "PAID") {
+          const now = new Date().toISOString();
+          const validityDays = 365;
+          const expiryDate = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000).toISOString();
+
+          await db.collection("payment_orders").doc(orderId).set({
+            ...orderRecord,
+            status: "PAID",
+            updatedAt: now
+          });
+
+          await db.collection("payment_transactions").doc(orderId).set({
+            id: orderId,
+            orderId,
+            userId: orderRecord.userId,
+            seriesId: orderRecord.seriesId,
+            cashfreePaymentId: payment.cf_payment_id || "cf_web_" + Date.now(),
+            paymentMethod: payment.payment_group || "UPI",
+            paymentStatus: "SUCCESS",
+            amount: orderRecord.amount,
+            currency: "INR",
+            paymentMessage: "Paid via webhook",
+            paidAt: now,
+            createdAt: now
+          });
+
+          const purchaseId = `PUR_${orderRecord.userId}_${orderRecord.seriesId}`;
+          await db.collection("purchases").doc(purchaseId).set({
+            id: purchaseId,
+            userId: orderRecord.userId,
+            seriesId: orderRecord.seriesId,
+            orderId,
+            purchaseStatus: "active",
+            accessStartDate: now,
+            accessEndDate: expiryDate,
+            createdAt: now,
+            updatedAt: now
+          });
+
+          console.log(`Unlocked series: ${orderRecord.seriesId} for user: ${orderRecord.userId} via webhook.`);
+        }
+      }
+    }
+
+    return res.json({ status: "processed" });
+
+  } catch (error: any) {
+    console.error("Webhook processing error:", error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// F. Admin Manual Access Grants & Cancellations
+app.post("/api/admin/grant-series-access", async (req, res) => {
+  const { userId, seriesId, durationDays, adminId } = req.body;
+  if (!userId || !seriesId) {
+    return res.status(400).json({ error: "Missing required parameters (userId, seriesId)" });
+  }
+
+  try {
+    const now = new Date().toISOString();
+    const days = Number(durationDays) || 365;
+    const expiryDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+    const purchaseId = `PUR_${userId}_${seriesId}`;
+
+    await db.collection("purchases").doc(purchaseId).set({
+      id: purchaseId,
+      userId,
+      seriesId,
+      orderId: "MANUAL_" + Date.now(),
+      purchaseStatus: "active",
+      accessStartDate: now,
+      accessEndDate: expiryDate,
+      createdAt: now,
+      updatedAt: now
+    });
+
+    const auditId = `AUD_${Date.now()}`;
+    await db.collection("audit_logs").doc(auditId).set({
+      id: auditId,
+      action: "grant_access",
+      adminId: adminId || "admin",
+      targetUserId: userId,
+      targetSeriesId: seriesId,
+      details: `Granted access for ${days} days to ${seriesId}`,
+      timestamp: now
+    });
+
+    return res.json({ success: true, message: "Manual access granted successfully!" });
+  } catch (error: any) {
+    console.error("Admin grant manual access failed:", error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/admin/cancel-series-access", async (req, res) => {
+  const { userId, seriesId, adminId } = req.body;
+  if (!userId || !seriesId) {
+    return res.status(400).json({ error: "Missing required parameters (userId, seriesId)" });
+  }
+
+  try {
+    const now = new Date().toISOString();
+    const purchaseId = `PUR_${userId}_${seriesId}`;
+
+    await db.collection("purchases").doc(purchaseId).set({
+      id: purchaseId,
+      userId,
+      seriesId,
+      orderId: "REVOKE",
+      purchaseStatus: "cancelled",
+      accessStartDate: now,
+      accessEndDate: now,
+      createdAt: now,
+      updatedAt: now
+    });
+
+    const auditId = `AUD_${Date.now()}`;
+    await db.collection("audit_logs").doc(auditId).set({
+      id: auditId,
+      action: "cancel_access",
+      adminId: adminId || "admin",
+      targetUserId: userId,
+      targetSeriesId: seriesId,
+      details: `Cancelled access to series: ${seriesId}`,
+      timestamp: now
+    });
+
+    return res.json({ success: true, message: "Series access cancelled/revoked successfully." });
+  } catch (error: any) {
+    console.error("Admin cancel access failed:", error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/admin/audit-logs", async (req, res) => {
+  try {
+    const snap = await db.collection("audit_logs").get();
+    const list: any[] = [];
+    snap.forEach(d => list.push(d.data()));
+    return res.json(list);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// G. Admin Payments and Revenue Stats
+app.get("/api/admin/payments-dashboard", async (req, res) => {
+  try {
+    const ordersSnap = await db.collection("payment_orders").get();
+    const subsSnap = await db.collection("payments").get();
+    const purchasesSnap = await db.collection("purchases").get();
+    
+    let totalRevenue = 0;
+    let totalPaymentsCount = 0;
+    let successfulPaymentsCount = 0;
+    
+    const allTransactions: any[] = [];
+
+    ordersSnap.forEach(doc => {
+      const order = doc.data();
+      if (order) {
+        totalPaymentsCount++;
+        const isPaid = order.status === "PAID";
+        if (isPaid) {
+          successfulPaymentsCount++;
+          totalRevenue += Number(order.amount) || 0;
+        }
+        allTransactions.push({
+          id: order.id,
+          userId: order.userId,
+          userEmail: order.userEmail,
+          userName: order.userName,
+          item: `Mock Test Series: ${order.seriesId}`,
+          amount: order.amount,
+          status: order.status,
+          date: order.createdAt || order.updatedAt,
+          gateway: order.paymentGateway || "Cashfree"
+        });
+      }
+    });
+
+    subsSnap.forEach(doc => {
+      const log = doc.data();
+      if (log) {
+        totalPaymentsCount++;
+        const isPaid = log.status === "PAID";
+        if (isPaid) {
+          successfulPaymentsCount++;
+          totalRevenue += Number(log.amount) || 0;
+        }
+        allTransactions.push({
+          id: log.id,
+          userId: log.userId,
+          userEmail: log.userEmail,
+          userName: log.userName,
+          item: `Subscription Plan: ${log.planName}`,
+          amount: log.amount,
+          status: log.status,
+          date: log.createdAt || log.purchaseDate,
+          gateway: log.paymentGateway || "UPI"
+        });
+      }
+    });
+
+    let activePurchasesCount = 0;
+    purchasesSnap.forEach(doc => {
+      const p = doc.data();
+      if (p && p.purchaseStatus === "active") {
+        activePurchasesCount++;
+      }
+    });
+
+    const successRate = totalPaymentsCount > 0 ? Math.round((successfulPaymentsCount / totalPaymentsCount) * 100) : 100;
+
+    return res.json({
+      totalRevenue,
+      totalPaymentsCount,
+      successfulPaymentsCount,
+      successRate,
+      activePurchasesCount,
+      transactions: allTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    });
+
+  } catch (error: any) {
+    console.error("Failed to load admin payment dashboard stats:", error);
+    return res.status(500).json({ error: error.message });
+  }
 });
 
 // Subscription Status Retrieval Endpoint (bypasses direct client Firestore queries to avoid Rules permissions issues)

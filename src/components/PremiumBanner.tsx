@@ -16,6 +16,7 @@ interface PremiumBannerProps {
 export default function PremiumBanner({
   onGoBack,
   firebaseUser,
+  onBuyPlan,
 }: PremiumBannerProps) {
   const [selectedPlan, setSelectedPlan] = useState<'basic' | 'premium'>('premium');
   const [selectedExam, setSelectedExam] = useState<typeof examCategories[0]>(() => examCategories[0]);
@@ -25,6 +26,8 @@ export default function PremiumBanner({
   const [upiId, setUpiId] = useState('prokashmal799@okhdfcbank');
   const [upiName, setUpiName] = useState('Prokash Mal');
   const [enableUpi, setEnableUpi] = useState(true);
+  const [enableCashfree, setEnableCashfree] = useState(true);
+  const [paymentMethod, setPaymentMethod] = useState<'online' | 'upi'>('online');
 
   // Checkout states
   const [showCheckout, setShowCheckout] = useState(false);
@@ -45,7 +48,17 @@ export default function PremiumBanner({
             if (data && typeof data === 'object') {
               if (data.upiId) setUpiId(data.upiId);
               if (data.upiName) setUpiName(data.upiName);
-              if (data.enableUpi !== undefined) setEnableUpi(data.enableUpi);
+              
+              const cashfreeActive = !!data.enableCashfree;
+              setEnableCashfree(cashfreeActive);
+              
+              if (cashfreeActive) {
+                setEnableUpi(false); // No manual when Cashfree is active
+                setPaymentMethod('online');
+              } else {
+                setEnableUpi(!!data.enableUpi);
+                setPaymentMethod('upi');
+              }
             }
           } else {
             console.warn("Received non-JSON response from payment settings:", contentType);
@@ -78,7 +91,15 @@ export default function PremiumBanner({
       alert("পেমেন্ট করতে দয়া করে প্রথমে গুগল দিয়ে লগইন করুন।");
       return;
     }
-    setShowCheckout(true);
+    if (paymentMethod === 'online') {
+      if (onBuyPlan) {
+        onBuyPlan(selectedPlan);
+      } else {
+        alert("অনলাইন পেমেন্ট গেটওয়ে সক্রিয় নেই বা লোডিং হচ্ছে।");
+      }
+    } else {
+      setShowCheckout(true);
+    }
   };
 
   const handleSubmitUpiPayment = async (e: React.FormEvent) => {
@@ -386,6 +407,53 @@ export default function PremiumBanner({
              এই প্ল্যান কিনলে শুধুমাত্র এই পরীক্ষার Mock Test পাবেন
            </p>
         </div>
+
+        {/* Payment Method Selector */}
+        {(enableCashfree && enableUpi) && (
+          <div className="bg-slate-50 border border-slate-150 dark:border-slate-800 rounded-[24px] p-4 mb-5">
+            <h3 className="text-[12px] font-black text-slate-800 mb-3 flex items-center gap-2">
+              ⚡ পেমেন্ট পদ্ধতি নির্বাচন করুন (Select Payment Method):
+            </h3>
+            <div className="grid grid-cols-2 gap-2.5">
+              {enableCashfree && (
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('online')}
+                  className={`p-3 rounded-2xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                    paymentMethod === 'online'
+                      ? 'bg-blue-50 border-blue-600 text-blue-900 font-bold shadow-sm'
+                      : 'bg-white border-slate-200 text-slate-650 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className="text-lg">💳</span>
+                  <span className="text-[12px] font-black">তাত্ক্ষণিক সক্রিয়</span>
+                  <span className="text-[9px] text-slate-400 font-semibold">(Instant Gateway)</span>
+                </button>
+              )}
+              {enableUpi && (
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('upi')}
+                  className={`p-3 rounded-2xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                    paymentMethod === 'upi'
+                      ? 'bg-blue-50 border-blue-600 text-blue-900 font-bold shadow-sm'
+                      : 'bg-white border-slate-200 text-slate-650 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className="text-lg">📲</span>
+                  <span className="text-[12px] font-black">ম্যানুয়াল UPI</span>
+                  <span className="text-[9px] text-slate-400 font-semibold">(Scan QR & Verify)</span>
+                </button>
+              )}
+            </div>
+            
+            <p className="text-[10px] text-slate-450 mt-2.5 text-center leading-normal font-medium">
+              {paymentMethod === 'online' 
+                ? '✓ ডেবিট/ক্রেডিট কার্ড, নেট ব্যাঙ্কিং, ওয়ালেট বা অনলাইন ইউপিআই দিয়ে ৫ সেকেন্ডে প্রিমিয়াম সচল করুন।' 
+                : '✓ পেমেন্ট রিকোয়েস্ট ম্যানুয়ালি ভেরিফিকেশন করার পর ১ ঘণ্টার মধ্যে অ্যাকাউন্ট সক্রিয় হবে।'}
+            </p>
+          </div>
+        )}
 
         {/* Pricing Cards */}
         <div className="space-y-4 mb-6">

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, BookOpen, HelpCircle, Trophy, User, Zap } from 'lucide-react';
+import { Home, BookOpen, Trophy, User, BarChart2 } from 'lucide-react';
 import { ViewType } from '../types';
 
 interface BottomNavProps {
@@ -17,19 +17,19 @@ export default function BottomNav({ currentView, setView }: BottomNavProps) {
       icon: Home
     },
     {
-      view: 'mock-tests' as ViewType,
-      label: 'মক টেস্ট',
+      view: 'my-tests' as ViewType,
+      label: 'আমার টেস্ট',
       icon: BookOpen
     },
     {
-      view: 'question-bank' as ViewType,
-      label: 'প্রশ্ন ব্যাংক',
-      icon: HelpCircle
+      view: 'results' as ViewType,
+      label: 'ফলাফল',
+      icon: Trophy
     },
     {
-      view: 'results' as ViewType,
-      label: 'GK & CA',
-      icon: Zap
+      view: 'performance' as ViewType,
+      label: 'পারফরম্যান্স',
+      icon: BarChart2
     },
     {
       view: 'profile' as ViewType,
@@ -45,8 +45,9 @@ export default function BottomNav({ currentView, setView }: BottomNavProps) {
           const IconComponent = item.icon;
           // Determine if this nav item is active
           const isActive = currentView === item.view || 
-            (item.view === 'mock-tests' && currentView === 'test-running') ||
-            (item.view === 'results' && currentView === 'test-result');
+            (item.view === 'my-tests' && currentView === 'mock-tests') ||
+            (item.view === 'results' && currentView === 'test-result') ||
+            (item.view === 'my-tests' && currentView === 'test-running');
 
           return (
             <button

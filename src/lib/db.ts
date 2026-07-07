@@ -83,99 +83,7 @@ const defaultTemplates: CustomTemplate[] = [
 ];
 
 // Define initial Post Names under categories
-const defaultPosts: PostName[] = [
-  // WB Panchayat
-  { id: 'panchayat-deo', categoryId: 'panchayat', name: 'DEO', bengaliName: 'ডাটা এন্ট্রি অপারেটর (DEO)' },
-  { id: 'panchayat-ea', categoryId: 'panchayat', name: 'Executive Assistant', bengaliName: 'এক্সিকিউটিভ অ্যাসিস্ট্যান্ট' },
-  { id: 'panchayat-ns', categoryId: 'panchayat', name: 'Nirman Sahayak', bengaliName: 'নির্মাণ সহায়ক' },
-  { id: 'panchayat-gpk', categoryId: 'panchayat', name: 'Gram Panchayat Karmi', bengaliName: 'গ্রাম পঞ্চায়েত কর্মী' },
-  { 
-    id: 'panchayat-clerk', 
-    categoryId: 'panchayat', 
-    name: 'Clerk', 
-    bengaliName: 'পঞ্চায়েত ক্লার্ক (Clerk)',
-    templateId: 'tpl-panchayat',
-    fields: {
-      vacancy: '2400+',
-      qualification: 'Madhyamik passed with basic computer knowledge (মাধ্যমিক ও কম্পিউটার সার্টিফিকেট)',
-      ageLimit: '18 - 40 years as of Jan 1, 2026',
-      salary: 'Rs. 22,700 - 58,500 plus other allowances',
-      applicationFee: 'Rs. 150 for General, Free for SC/ST/PWD',
-      selectionProcess: '1. MCQ Written Test (85 Marks)\n2. Computer Practical Test & Interview (15 Marks)',
-      importantDates: 'Online application starts: June 2026\nLast date to apply: July 2026',
-      syllabus: 'Syllabus covers Arithmetic (25 marks), English (25 marks), Bengali (15 marks), and General Knowledge (20 marks).',
-      notificationPdf: 'https://wbssc.gov.in/pdf/panchayat_clerk_2026.pdf',
-      officialWebsite: 'https://wbssc.gov.in'
-    },
-    faqs: [
-      { question: 'কম্পিউটার সার্টিফিকেট কি বাধ্যতামূলক?', answer: 'হ্যাঁ, আবেদন করার জন্য বেসিক কম্পিউটার চালনার অভিজ্ঞতা এবং সার্টিফিকেট প্রয়োজন।' }
-    ]
-  },
-
-  // WB Police
-  { 
-    id: 'police-constable', 
-    categoryId: 'police', 
-    name: 'Constable', 
-    bengaliName: 'কনস্টেবল (Constable)',
-    templateId: 'tpl-police',
-    fields: {
-      vacancy: '11749',
-      qualification: 'Madhyamik passed (মাধ্যমিক পাশ)',
-      ageLimit: '18 - 30 years (reserved category relaxation applicable)',
-      salary: 'Rs. 22,700 - 58,500 (Pay Level 6)',
-      height: '167 cm for male, 160 cm for female candidates',
-      chest: '78 cm (with 5 cm expansion capacity)',
-      running: '1600 meters in 6 minutes 30 seconds (Male)',
-      physicalTest: 'Candidates must clear PMT (Physical Measurement Test) and PET (Physical Efficiency Test) to qualify for the main written examination.',
-      selectionProcess: '1. Preliminary Written Test (100 Marks)\n2. Physical Measurement Test (PMT)\n3. Physical Efficiency Test (PET)\n4. Final Written Exam (85 Marks)\n5. Interview (15 Marks)',
-      examPattern: 'Preliminary exam has 100 MCQs of 1 mark each with 1/4th negative marking. Subjects: General Awareness (40), Elementary Mathematics (30), Reasoning (30). Duration is 1 hour.',
-      notificationPdf: 'https://prb.wb.gov.in/pdf/constable_notification_2026.pdf',
-      officialWebsite: 'https://prb.wb.gov.in'
-    },
-    faqs: [
-      { question: 'শিক্ষাগত যোগ্যতা কী প্রয়োজন?', answer: 'এই পদের জন্য প্রার্থীকে অবশ্যই পশ্চিমবঙ্গ মধ্যশিক্ষা পর্ষদ বা সমমানের বোর্ড থেকে মাধ্যমিক পরীক্ষায় উত্তীর্ণ হতে হবে।' },
-      { question: 'নেগেটিভ মার্কিং আছে কি?', answer: 'হ্যাঁ, প্রতিটি ভুল উত্তরের জন্য ১/৪ (০.২৫) নম্বর কাটা যাবে।' }
-    ]
-  },
-  { id: 'police-lady-constable', categoryId: 'police', name: 'Lady Constable', bengaliName: 'লেডি কনস্টেবল' },
-  { id: 'police-si', categoryId: 'police', name: 'SI', bengaliName: 'সাব-ইন্সপেক্টর (SI)' },
-  { id: 'police-sergeant', categoryId: 'police', name: 'Sergeant', bengaliName: 'সার্জেন্ট (Sergeant)' },
-  { id: 'police-wo', categoryId: 'police', name: 'Wireless Operator', bengaliName: 'ওয়্যারলেস অপারেটর' },
-
-  // WBPSC
-  { id: 'wbpsc-clerkship', categoryId: 'wbpsc', name: 'Clerkship', bengaliName: 'ক্লার্কশিপ (Clerkship)' },
-  { id: 'wbpsc-misc', categoryId: 'wbpsc', name: 'Miscellaneous', bengaliName: 'মিসলেনিয়াস সার্ভিস' },
-  { id: 'wbpsc-foodsi', categoryId: 'wbpsc', name: 'Food SI', bengaliName: 'ফুড এসআই (Food SI)' },
-  { id: 'wbpsc-audit', categoryId: 'wbpsc', name: 'Audit & Accounts', bengaliName: 'অডিট অ্যান্ড অ্যাকাউন্টস' },
-
-  // SSC
-  { id: 'ssc-cgl', categoryId: 'ssc', name: 'CGL', bengaliName: 'এসএসসি সিজিএল (CGL)' },
-  { id: 'ssc-chsl', categoryId: 'ssc', name: 'CHSL', bengaliName: 'এসএসসি সিএইচএসএল (CHSL)' },
-  { id: 'ssc-mts', categoryId: 'ssc', name: 'MTS', bengaliName: 'এসএসসি এমটিএস (MTS)' },
-  { id: 'ssc-gd', categoryId: 'ssc', name: 'GD Constable', bengaliName: 'জিডি কনস্টেবল' },
-
-  // Railway
-  { id: 'railway-ntpc', categoryId: 'railway', name: 'NTPC', bengaliName: 'রেলওয়ে এনটিপিসি (NTPC)' },
-  { id: 'railway-groupd', categoryId: 'railway', name: 'Group D', bengaliName: 'রেলওয়ে গ্রুপ ডি (Group D)' },
-  { id: 'railway-alp', categoryId: 'railway', name: 'ALP', bengaliName: 'অ্যাসিস্ট্যান্ট লোকো পাইলট (ALP)' },
-
-  // Banking
-  { id: 'bank-po', categoryId: 'bank', name: 'PO', bengaliName: 'ব্যাংক পিও (PO)' },
-  { id: 'bank-clerk', categoryId: 'bank', name: 'Clerk', bengaliName: 'ব্যাংক ক্লার্ক (Clerk)' },
-
-  // ICDS
-  { id: 'icds-supervisor', categoryId: 'icds', name: 'Supervisor', bengaliName: 'আইসিডিএস সুপারভাইজার' },
-  { id: 'icds-helper', categoryId: 'icds', name: 'Helper', bengaliName: 'আইসিডিএস হেল্পার (কর্মী)' },
-
-  // Primary TET
-  { id: 'tet-primary', categoryId: 'tet', name: 'Primary Teacher', bengaliName: 'প্রাইমারি শিক্ষক (TET)' },
-  { id: 'tet-upper', categoryId: 'tet', name: 'Upper Primary', bengaliName: 'আপার প্রাইমারি শিক্ষক' },
-
-  // Group D
-  { id: 'groupd-staff', categoryId: 'groupd', name: 'Staff', bengaliName: 'গ্রুপ ডি স্টাফ' },
-  { id: 'groupd-peon', categoryId: 'groupd', name: 'Peon', bengaliName: 'পিয়ন ও হেল্পার' }
-];
+const defaultPosts: PostName[] = [];
 
 // Helper to seed/retrieve from local storage
 export function initializeDB() {
@@ -187,9 +95,9 @@ export function initializeDB() {
     safeLocalStorage.setItem('wbm_templates', JSON.stringify(defaultTemplates));
     safeLocalStorage.setItem('wbm_templates_seeded', 'true');
   }
-  if (!safeLocalStorage.getItem('wbm_posts_seeded')) {
+  if (!safeLocalStorage.getItem('wbm_posts_seeded_v3')) {
     safeLocalStorage.setItem('wbm_posts', JSON.stringify(defaultPosts));
-    safeLocalStorage.setItem('wbm_posts_seeded', 'true');
+    safeLocalStorage.setItem('wbm_posts_seeded_v3', 'true');
   }
   if (!safeLocalStorage.getItem('wbm_tests_seeded')) {
     // Map initial mock tests to relevant posts

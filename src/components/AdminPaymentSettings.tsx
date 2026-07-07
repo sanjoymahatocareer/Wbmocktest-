@@ -24,6 +24,11 @@ export default function AdminPaymentSettings({ onGoBack }: AdminPaymentSettingsP
   const [upiId, setUpiId] = useState('prokashmal799@okhdfcbank');
   const [upiName, setUpiName] = useState('Prokash Mal');
   const [enableUpi, setEnableUpi] = useState(true);
+  const [enableCashfree, setEnableCashfree] = useState(true);
+  const [cashfreeAppId, setCashfreeAppId] = useState('');
+  const [cashfreeSecretKey, setCashfreeSecretKey] = useState('');
+  const [cashfreeEnv, setCashfreeEnv] = useState<'SANDBOX' | 'PRODUCTION'>('PRODUCTION');
+  const [showSecret, setShowSecret] = useState(false);
   
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -44,13 +49,19 @@ export default function AdminPaymentSettings({ onGoBack }: AdminPaymentSettingsP
         const contentType = response.headers.get("content-type");
         if (contentType && contentType.includes("application/json")) {
           const data = await response.json();
-          if (data && typeof data === 'object') {
-            setUpiId(data.upiId || 'prokashmal799@okhdfcbank');
-            setUpiName(data.upiName || 'Prokash Mal');
-            if (data.enableUpi !== undefined) {
-              setEnableUpi(data.enableUpi);
+            if (data && typeof data === 'object') {
+              setUpiId(data.upiId || 'prokashmal799@okhdfcbank');
+              setUpiName(data.upiName || 'Prokash Mal');
+              if (data.enableUpi !== undefined) {
+                setEnableUpi(data.enableUpi);
+              }
+              if (data.enableCashfree !== undefined) {
+                setEnableCashfree(data.enableCashfree);
+              }
+              setCashfreeAppId(data.cashfreeAppId || '');
+              setCashfreeSecretKey(data.cashfreeSecretKey || '');
+              setCashfreeEnv(data.cashfreeEnv || 'PRODUCTION');
             }
-          }
         } else {
           console.warn("Expected JSON for payment settings but received", contentType);
         }
@@ -98,6 +109,10 @@ export default function AdminPaymentSettings({ onGoBack }: AdminPaymentSettingsP
         upiId,
         upiName,
         enableUpi,
+        enableCashfree,
+        cashfreeAppId,
+        cashfreeSecretKey,
+        cashfreeEnv,
         updatedAt: new Date().toISOString()
       };
 
@@ -264,6 +279,93 @@ export default function AdminPaymentSettings({ onGoBack }: AdminPaymentSettingsP
               <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${enableUpi ? 'left-6' : 'left-1'}`} />
             </button>
           </div>
+
+          {/* Cashfree Toggle */}
+          <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-100 rounded-2xl">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm text-lg">
+                💳
+              </div>
+              <span className="text-xs font-bold text-slate-700">Enable Cashfree PG (Online)</span>
+            </div>
+            <button 
+              onClick={() => setEnableCashfree(!enableCashfree)}
+              className={`w-11 h-6 rounded-full transition-colors relative ${enableCashfree ? 'bg-emerald-500' : 'bg-slate-300'}`}
+            >
+              <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${enableCashfree ? 'left-6' : 'left-1'}`} />
+            </button>
+          </div>
+
+          {/* Dynamic Cashfree Fields */}
+          {enableCashfree && (
+            <div className="p-4 bg-blue-50/50 border border-blue-100 rounded-2xl space-y-4 animate-fadeIn">
+              <div className="text-[11px] font-black text-blue-800 uppercase tracking-wider">
+                🔐 Cashfree API Credentials
+              </div>
+              
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-600 flex justify-between items-center">
+                  <span>Cashfree App ID (Client ID)</span>
+                  <span className="text-[9px] text-blue-600 font-semibold">(Found in Merchant Dashboard)</span>
+                </label>
+                <input 
+                  type="text" 
+                  value={cashfreeAppId}
+                  onChange={(e) => setCashfreeAppId(e.target.value)}
+                  placeholder="Enter Cashfree App ID"
+                  className="w-full bg-white border border-slate-200 rounded-xl py-2 px-3 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-600 flex justify-between items-center">
+                  <span>Cashfree Secret Key (Client Secret)</span>
+                  <button 
+                    type="button" 
+                    onClick={() => setShowSecret(!showSecret)}
+                    className="text-[9px] text-blue-600 font-bold hover:underline"
+                  >
+                    {showSecret ? "Hide" : "Show"}
+                  </button>
+                </label>
+                <input 
+                  type={showSecret ? "text" : "password"} 
+                  value={cashfreeSecretKey}
+                  onChange={(e) => setCashfreeSecretKey(e.target.value)}
+                  placeholder="Enter Cashfree Secret Key"
+                  className="w-full bg-white border border-slate-200 rounded-xl py-2 px-3 text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-600">Environment Mode</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCashfreeEnv('SANDBOX')}
+                    className={`py-2 rounded-xl border text-[10px] font-bold transition-all ${
+                      cashfreeEnv === 'SANDBOX'
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                        : 'bg-white text-slate-650 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    TEST (Sandbox)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCashfreeEnv('PRODUCTION')}
+                    className={`py-2 rounded-xl border text-[10px] font-bold transition-all ${
+                      cashfreeEnv === 'PRODUCTION'
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                        : 'bg-white text-slate-650 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    LIVE (Production)
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           <button 
             onClick={handleSave}

@@ -43,6 +43,7 @@ import SidebarDrawer from './components/SidebarDrawer';
 import StudyPlanner from './components/StudyPlanner';
 import GamificationDashboard from './components/GamificationDashboard';
 import DailyQuiz from './components/DailyQuiz';
+import UserDashboard from './components/UserDashboard';
 
 export default function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
@@ -90,6 +91,19 @@ export default function App() {
   const [activeSubscription, setActiveSubscription] = useState<ActiveSubscription | null>(null);
   const [verifyingPayment, setVerifyingPayment] = useState<boolean>(false);
   const [paymentSuccessData, setPaymentSuccessData] = useState<{ orderId: string; planName: string } | null>(null);
+
+  // Cashfree Series-level purchases states
+  const [purchasedSeries, setPurchasedSeries] = useState<string[]>([]);
+  const [selectedPurchaseSeries, setSelectedPurchaseSeries] = useState<any | null>(null);
+  const [couponCode, setCouponCode] = useState('');
+  const [couponDiscount, setCouponDiscount] = useState(0);
+  const [couponError, setCouponError] = useState('');
+  const [couponSuccess, setCouponSuccess] = useState('');
+  const [isProcessingPurchase, setIsProcessingPurchase] = useState(false);
+  const [verifyingSeriesPayment, setVerifyingSeriesPayment] = useState<boolean>(false);
+  const [seriesPaymentSuccess, setSeriesPaymentSuccess] = useState<string | null>(null);
+  const [seriesPaymentSuccessName, setSeriesPaymentSuccessName] = useState<string | null>(null);
+
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedSubCategory, setSelectedSubCategory] = useState<string | null>(null);
   const [categorySearchQuery, setCategorySearchQuery] = useState<string>('');
@@ -410,6 +424,63 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
         })
         .finally(() => {
           setVerifyingPayment(false);
+        });
+    }
+  }, [firebaseUser]);
+
+  // Fetch Purchased Series for currently authenticated user
+  const fetchPurchasedSeries = async (uId: string) => {
+    try {
+      const res = await fetch(`/api/payments/my-purchases?userId=${uId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setPurchasedSeries(data.purchasedSeriesIds || []);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load purchased series:", e);
+    }
+  };
+
+  useEffect(() => {
+    if (firebaseUser && firebaseUser.uid && firebaseUser.uid !== 'anonymous') {
+      fetchPurchasedSeries(firebaseUser.uid);
+    } else {
+      setPurchasedSeries([]);
+    }
+  }, [firebaseUser]);
+
+  // Listen for Cashfree Series deep link verification redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const verifySeriesOrderId = params.get('verify_series_order_id');
+    if (verifySeriesOrderId) {
+      try {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } catch (e) {
+        console.warn("History replaceState is blocked or unavailable:", e);
+      }
+
+      setVerifyingSeriesPayment(true);
+      fetch(`/api/verify-series-payment?order_id=${verifySeriesOrderId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.status === 'success') {
+            setSeriesPaymentSuccess(data.seriesId || 'true');
+            setSeriesPaymentSuccessName(data.seriesName || 'মক টেস্ট সিরিজ');
+            if (firebaseUser && firebaseUser.uid) {
+              fetchPurchasedSeries(firebaseUser.uid);
+            }
+          } else {
+            alert('আপনার মক টেস্ট সিরিজ পেমেন্ট ভেরিফিকেশন পেন্ডিং রয়েছে বা সম্পন্ন হয়নি।');
+          }
+        })
+        .catch(err => {
+          console.error("Verify series payment failed:", err);
+        })
+        .finally(() => {
+          setVerifyingSeriesPayment(false);
         });
     }
   }, [firebaseUser]);
@@ -989,7 +1060,7 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
               <div className="text-center py-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
                 <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 block">WBMockTest.in © 2026</span>
                 <p className="text-[9px] text-slate-400 max-w-[280px] mx-auto leading-relaxed">
-                  পশ্চিমবঙ্গে সরকারি চাকরির প্রস্তুতির সেরা অনলাইন প্ল্যাটফর্ম।
+                  পশ্চিমবঙ্গে সরকারি চাকরির প্রস্তুতির সেরা online প্ল্যাটফর্ম।
                 </p>
               </div>
             </div>
@@ -1026,7 +1097,19 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
                     test={test}
                     onStartTest={handleStartTest}
                     isPremiumUser={isPremiumUser}
-                    onReqPremiumUpgrade={() => {}}
+                    purchasedSeries={purchasedSeries}
+                    onReqPremiumUpgrade={() => {
+                      const matchingPost = posts.find(p => p.id === test.postId);
+                      if (matchingPost) {
+                        setCouponCode('');
+                        setCouponDiscount(0);
+                        setCouponError('');
+                        setCouponSuccess('');
+                        setSelectedPurchaseSeries(matchingPost);
+                      } else {
+                        setActiveModal('premium-buy');
+                      }
+                    }}
                   />
                 ))}
                 {filteredTests.length === 0 && (
@@ -1035,209 +1118,27 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
                   </div>
                 )}
               </div>
-                          {resultsTab === 'gamification' ? (
-                <div className="animate-fadeIn">
-                  <GamificationDashboard 
-                    points={userPoints}
-                    streakCount={streakCount}
-                    resultsLog={resultsLog}
-                    profileName={profileName}
-                  />
-                </div>
-              ) : (
-                <div className="space-y-4 animate-fadeIn">
-                  <div className="bg-white dark:bg-slate-900 p-4 border border-slate-100 dark:border-slate-800 rounded-3xl shadow-sm text-center animate-fadeIn">
-                    <h2 className="text-base font-black text-slate-855 dark:text-white">আপনার আগের পরীক্ষার রিপোর্টসমূহ</h2>
-                    <p className="text-[11px] text-slate-400 font-sans mt-0.5">মেধাতালিকা বিশ্লেষণের ঐতিহাসিক রেকর্ড লগ ও মেন্টরিং</p>
-                  </div>
-
-                  {resultsLog.length === 0 ? (
-                    <div className="text-center p-12 bg-white dark:bg-slate-900 border border-dashed border-slate-200 dark:border-slate-800 rounded-3xl space-y-3 animate-fadeIn">
-                      <div className="w-12 h-12 bg-slate-100 dark:bg-slate-850 rounded-full flex items-center justify-center mx-auto text-slate-400">
-                        <Trophy className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <h3 className="text-xs font-black text-slate-855 dark:text-slate-205">কোনো হিস্ট্রি লগ পাওয়া যায়নি</h3>
-                        <p className="text-[10px] text-slate-400 leading-normal mt-1">প্রথমে একটি মক টেস্ট পূরণ করুন। আপনার সকল পারফরম্যান্স চার্ট ও স্কোর এখানে ট্র্যাক করা সম্ভব হবে।</p>
-                      </div>
-                      <button 
-                        onClick={() => setView('mock-tests')}
-                        className="bg-blue-600 text-white text-xs font-bold py-1.5 px-4 rounded-xl shadow-md cursor-pointer"
-                      >
-                        শুরু করতে টেস্ট দিন
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-3 animate-fadeIn">
-                      {resultsLog.map((log) => (
-                        <div 
-                          key={log.id}
-                          onClick={() => {
-                            setCurrentResult(log);
-                            setView('test-result');
-                          }}
-                          className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-3xl p-4 shadow-sm hover:border-blue-200 cursor-pointer transition-all flex items-center justify-between"
-                        >
-                          <div>
-                            <span className="text-[9px] text-slate-400 block">{log.date}</span>
-                            <h4 className="text-xs font-black text-slate-800 dark:text-slate-100 leading-snug mt-0.5">{log.testTitle}</h4>
-                            <span className="text-[10px] text-emerald-600 font-bold block mt-1">স্কোর: {log.score} / {log.totalMarks} ({log.accuracy}% সঠিকতা)</span>
-                          </div>
-                          
-                          <div className="text-right">
-                            <span className="text-xs font-black text-indigo-650 dark:text-blue-400 block">র‍্যাঙ্ক #{log.rank}</span>
-                            <span className="text-[9px] text-slate-400 font-bold block mt-1">বিশদ সমাধান ও এআই উপদেশ ➔</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           )}
 
-          {/* VIEW 5: USER PROFILE VIEW */}
-          {currentView === 'profile' && (
-            <div className="space-y-4 animate-fadeIn">
-              <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-850 rounded-3xl p-5 shadow-sm text-center relative overflow-hidden">
-                <div className="w-16 h-16 rounded-full overflow-hidden bg-gradient-to-br from-blue-600 to-indigo-600 text-white flex items-center justify-center text-xl font-bold mx-auto mb-3 shadow">
-                  {firebaseUser?.photoURL ? (
-                    <img 
-                      src={firebaseUser.photoURL} 
-                      alt={profileName} 
-                      className="w-full h-full object-cover"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    profileName.substring(0, 1)
-                  )}
-                </div>
-
-                <div className="space-y-1">
-                  <h3 className="text-sm font-black text-slate-800 dark:text-white flex items-center justify-center gap-1.5">
-                    <span>{profileName}</span>
-                  </h3>
-                  <p className="text-[11px] text-slate-400 font-sans">মোবাইল: +৯১ {profilePhone}</p>
-                </div>
-              </div>
-
-              {/* Google Connection Status / Login */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-4 shadow-sm space-y-3.5">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase leading-snug">গুগল অ্যাকাউন্ট লিঙ্ক</h4>
-                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${firebaseUser ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-450'}`}>
-                    {firebaseUser ? 'সংযুক্ত আছে' : 'সংযুক্ত নেই'}
-                  </span>
-                </div>
-
-                {firebaseUser ? (
-                  <div className="space-y-3">
-                    <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-850 flex items-center justify-between">
-                      <div className="min-w-0 flex-1 pr-2">
-                        <span className="text-[9px] text-slate-400 block font-bold">লগইন ইমেল</span>
-                        <span className="text-xs font-bold text-slate-700 dark:text-slate-350 truncate block font-sans">{firebaseUser.email}</span>
-                      </div>
-                      <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-black whitespace-nowrap">✓ Verified</span>
-                    </div>
-
-                    <button
-                      onClick={handleSignOut}
-                      className="w-full py-2.5 border border-rose-200 hover:bg-rose-50/50 dark:border-rose-950/50 dark:hover:bg-rose-950/20 text-rose-600 text-[11px] font-black rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      <LogOut className="w-4 h-4" />
-                      <span>গুগল অ্যাকাউন্ট সাইন-আউট</span>
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <p className="text-[11px] text-slate-400 leading-normal">
-                      আপনার পরীক্ষার অগ্রগতি, মক টেস্ট স্কোর ও লিডারবোর্ডের এক্সপি (XP) পয়েন্ট চিরতরে সুরক্ষিত ও সংরক্ষিত রাখতে গুগল সাইন-ইন সম্পন্ন করুন।
-                    </p>
-                    <button
-                      onClick={handleGoogleLogin}
-                      disabled={isLoggingIn}
-                      className="w-full py-3 bg-blue-600 hover:bg-blue-650 disabled:opacity-50 text-white text-xs font-black rounded-2xl transition-all flex items-center justify-center gap-2 shadow-md shadow-blue-500/10 cursor-pointer"
-                    >
-                      {isLoggingIn ? (
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      ) : (
-                        <LogIn className="w-4 h-4" />
-                      )}
-                      <span>গুগল দিয়ে প্রবেশ করুন</span>
-                    </button>
-
-                    {authError && (
-                      <div className="text-[11px] bg-red-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 p-3.5 rounded-2xl border border-red-150/50 dark:border-rose-900/40 font-sans leading-relaxed shadow-sm">
-                        {authError === 'autherror-unauthorized-domain' ? (
-                          <div className="space-y-2">
-                            <span className="font-extrabold block text-rose-700 dark:text-rose-300">❌ ডোমেইন অনুমোদিত নয় (Unauthorized Domain)</span>
-                            <span className="block text-[10px]">আপনার custom domain-এ গুগল সাইন-ইন কাজ করানোর জন্য নিচের নির্দেশাবলী অনুসরণ করুন:</span>
-                            <ol className="list-decimal list-inside text-[9.5px] space-y-1 text-slate-600 dark:text-slate-400 pl-1">
-                              <li>আপনার <strong>Firebase Console</strong>-এ প্রবেশ করুন।</li>
-                              <li><strong>Authentication</strong> সেকশনে গিয়ে <strong>Settings ➔ Authorized Domains</strong> ট্যাবে যান।</li>
-                              <li><strong>Add domain</strong> বোতামে ক্লিক করে নিচের দুটি ডোমেন এক এক করে যুক্ত করুন:</li>
-                            </ol>
-                            <div className="bg-white dark:bg-slate-950 p-2 rounded-xl border border-slate-200 dark:border-slate-850 font-mono text-[9px] mt-1.5 space-y-0.5 select-all font-semibold text-slate-800 dark:text-slate-350 shadow-inner">
-                              <div>wbmocktest.in</div>
-                              <div>www.wbmocktest.in</div>
-                            </div>
-                          </div>
-                        ) : (
-                          <span>{authError}</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Simple editable details card */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-4 shadow-sm space-y-3">
-                <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase leading-snug">প্রোফাইল সেটিংস সম্পাদনা</h4>
-                
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-400 block mb-1">নাম পরিবর্তন (বাংলায়)</label>
-                    <input 
-                      type="text" 
-                      value={profileName}
-                      onChange={(e) => setProfileName(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-150 p-2.5 rounded-xl text-xs font-bold text-slate-800"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-400 block mb-1">মোবাইল নম্বর (১০ ডিজিট)</label>
-                    <input 
-                      type="text" 
-                      value={profilePhone}
-                      onChange={(e) => setProfilePhone(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-150 p-2.5 rounded-xl text-xs font-bold text-slate-800"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Total performance summarized */}
-              <div className="bg-gradient-to-br from-indigo-900 to-slate-950 text-white rounded-3xl p-4 border border-indigo-950 shadow">
-                <h4 className="text-xs font-black uppercase tracking-wider mb-3">সংক্ষিপ্ত পরিসংখ্যান লকার</h4>
-                
-                <div className="grid grid-cols-2 gap-3 text-center text-xs">
-                  <div className="bg-white/5 border border-white/10 rounded-2xl p-3">
-                    <span className="text-[10px] text-slate-400 block mb-0.5">সম্পন্ন মক টেস্ট</span>
-                    <span className="text-base font-black text-amber-400">{resultsLog.length} টি</span>
-                  </div>
-                  <div className="bg-white/5 border border-white/10 rounded-2xl p-3">
-                    <span className="text-[10px] text-slate-400 block mb-0.5">গড় সঠিকতা (Accuracy)</span>
-                    <span className="text-base font-black text-emerald-400">
-                      {resultsLog.length > 0 
-                        ? Math.round(resultsLog.reduce((a, b) => a + b.accuracy, 0) / resultsLog.length)
-                        : 0}%
-                    </span>
-                  </div>
-                </div>
-              </div>
+          {/* VIEW 5: UNIFIED USER DASHBOARD */}
+          {(currentView === 'my-tests' || currentView === 'results' || currentView === 'performance' || currentView === 'profile') && (
+            <div className="animate-fadeIn">
+              <UserDashboard 
+                firebaseUser={firebaseUser}
+                profileName={profileName}
+                profilePhone={profilePhone}
+                resultsLog={resultsLog}
+                onStartTest={handleStartTest}
+                onSignOut={handleSignOut}
+                isPremiumUser={isPremiumUser}
+                setIsPremiumUser={setIsPremiumUser}
+                setView={setView}
+                onSelectResult={(res) => {
+                  setCurrentResult(res);
+                  setView('test-result');
+                }}
+              />
             </div>
           )}
 
@@ -1351,6 +1252,233 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
           )}
 
         </main>
+
+        {/* Coupon and Series Purchase Handlers */}
+        {(() => {
+          // Inner scope IIFE helper to define handlers inside JSX layout cleanly
+          (window as any)._handleValidateCoupon = async () => {
+            if (!couponCode.trim()) {
+              setCouponError('দয়া করে একটি কুপন কোড লিখুন।');
+              return;
+            }
+            setCouponError('');
+            setCouponSuccess('');
+            try {
+              const res = await fetch('/api/payments/validate-coupon', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  couponCode: couponCode.trim(),
+                  seriesId: selectedPurchaseSeries?.id
+                })
+              });
+              const data = await res.json();
+              if (res.ok && data.success) {
+                setCouponDiscount(data.discountValue);
+                setCouponSuccess(`কুপন সফলভাবে প্রয়োগ করা হয়েছে! আপনি ${data.discountValue}% ছাড় পেয়েছেন।`);
+              } else {
+                setCouponError(data.error || 'ভুল বা মেয়াদোত্তীর্ণ কুপন কোড।');
+              }
+            } catch (e: any) {
+              setCouponError('কুপন চেক করার সময় সার্ভারে ত্রুটি হয়েছে।');
+            }
+          };
+
+          (window as any)._handleInitiateSeriesPurchase = async () => {
+            if (!firebaseUser) {
+              alert('দয়া করে প্রথমে লগইন করুন।');
+              return;
+            }
+            
+            setIsProcessingPurchase(true);
+            try {
+              const res = await fetch('/api/payments/create-series-order', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  userId: firebaseUser.uid,
+                  userName: profileName || firebaseUser.displayName,
+                  userEmail: firebaseUser.email,
+                  phone: profilePhone,
+                  seriesId: selectedPurchaseSeries.id,
+                  couponCode: couponCode.trim() || undefined
+                })
+              });
+              const data = await res.json();
+              if (res.ok && data.success && data.checkoutUrl) {
+                window.location.href = data.checkoutUrl;
+              } else {
+                alert(data.error || 'অর্ডার তৈরি করতে ব্যর্থ হয়েছে। দয়া করে আবার চেষ্টা করুন।');
+              }
+            } catch (e: any) {
+              alert('সার্ভার কানেকশন এরর: ' + e.message);
+            } finally {
+              setIsProcessingPurchase(false);
+            }
+          };
+          return null;
+        })()}
+
+        {/* Cashfree Series-level Purchase Bottom Sheet / Overlay */}
+        {selectedPurchaseSeries && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fadeIn">
+            <div className="bg-white dark:bg-slate-900 w-full sm:max-w-md rounded-t-[32px] sm:rounded-[28px] border border-slate-150 dark:border-slate-800 p-6 shadow-2xl max-h-[90vh] overflow-y-auto space-y-5 animate-slideUp font-sans">
+              <div className="flex justify-between items-start">
+                <div>
+                  <span className="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 text-[10px] font-black px-2.5 py-0.5 rounded-full inline-block mb-1.5 border border-emerald-200">
+                    👑 PREMIUM SERIES EXCLUSIVE
+                  </span>
+                  <h3 className="text-base font-black text-slate-800 dark:text-slate-100 leading-tight">
+                    {selectedPurchaseSeries.bengaliName}
+                  </h3>
+                  <p className="text-xs text-slate-400 font-bold mt-1">মক টেস্ট সিরিজ আনলক প্যানেল</p>
+                </div>
+                <button 
+                  onClick={() => setSelectedPurchaseSeries(null)}
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-400 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Benefits list */}
+              <div className="bg-slate-50 dark:bg-slate-950/40 rounded-2xl p-4 border border-slate-150 dark:border-slate-800/60 text-xs space-y-2.5 text-slate-600 dark:text-slate-300">
+                <div className="flex gap-2">
+                  <span className="text-emerald-500">✓</span>
+                  <span className="font-semibold leading-tight">এই সিরিজের অধীনে থাকা সমস্ত প্রিমিয়াম মক টেস্টের অ্যাক্সেস (মেয়াদ: {selectedPurchaseSeries.validityDays || 365} দিন)</span>
+                </div>
+                <div className="flex gap-2">
+                  <span className="text-emerald-500">✓</span>
+                  <span className="font-semibold leading-tight">উত্তরপত্রের বিস্তারিত ব্যাখ্যা ও সঠিক সমাধান ট্র্যাকার</span>
+                </div>
+                <div className="flex gap-2">
+                  <span className="text-emerald-500">✓</span>
+                  <span className="font-semibold leading-tight">সরাসরি অল ইন্ডিয়া লাইভ র‍্যাংক ও স্কোরকার্ড বিশ্লেষণ</span>
+                </div>
+              </div>
+
+              {/* Price block */}
+              <div className="flex items-center justify-between border-t border-b border-slate-100 dark:border-slate-800/80 py-4">
+                <div>
+                  <span className="text-xs text-slate-400 font-bold block mb-0.5">মেম্বারশিপ প্যাকেজ মূল্য:</span>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-2xl font-black text-slate-900 dark:text-white">
+                      ₹{selectedPurchaseSeries.salePrice || 49}
+                    </span>
+                    {selectedPurchaseSeries.regularPrice && (
+                      <span className="text-xs text-slate-400 font-bold line-through">
+                        ₹{selectedPurchaseSeries.regularPrice}
+                      </span>
+                    )}
+                    <span className="text-[10px] text-emerald-600 font-extrabold bg-emerald-50 dark:bg-emerald-950/20 px-1.5 py-0.5 rounded-md border border-emerald-150">
+                      -{Math.round(((selectedPurchaseSeries.regularPrice - selectedPurchaseSeries.salePrice) / selectedPurchaseSeries.regularPrice) * 100) || 50}% ছাড়!
+                    </span>
+                  </div>
+                </div>
+
+                <div className="text-right text-[10px] text-slate-400 font-bold">
+                  <span>মেয়াদ: {selectedPurchaseSeries.validityDays || 365} দিন</span>
+                  <span className="block text-[9.5px] text-indigo-500 font-extrabold">Cashfree পেমেন্ট গেটওয়ে</span>
+                </div>
+              </div>
+
+              {/* Coupon inputs */}
+              <div className="space-y-2">
+                <label className="text-[10.5px] font-extrabold text-slate-500 block">ডিসকাউন্ট কুপন কোড (যদি থাকে):</label>
+                <div className="flex gap-2">
+                  <input 
+                    type="text"
+                    placeholder="যেমন: SPECIAL50"
+                    className="flex-1 px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950/30 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono font-bold placeholder-slate-400 text-slate-800 dark:text-slate-100 uppercase focus:outline-none"
+                    value={couponCode}
+                    onChange={e => setCouponCode(e.target.value)}
+                  />
+                  <button 
+                    onClick={() => (window as any)._handleValidateCoupon()}
+                    className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-extrabold text-xs px-4 rounded-xl border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
+                  >
+                    প্রয়োগ করুন
+                  </button>
+                </div>
+                {couponError && <p className="text-[10px] text-rose-600 font-bold leading-tight animate-pulse">⚠️ {couponError}</p>}
+                {couponSuccess && <p className="text-[10px] text-emerald-600 font-bold leading-tight">🎉 {couponSuccess}</p>}
+              </div>
+
+              {/* Action buttons */}
+              <div className="space-y-2.5 pt-2">
+                {!firebaseUser ? (
+                  <div className="space-y-2 text-center bg-amber-50 dark:bg-amber-950/20 p-3.5 rounded-2xl border border-amber-200">
+                    <p className="text-[10.5px] text-amber-800 dark:text-amber-300 font-black">পেমেন্ট করার জন্য প্রথমে লগইন করা আবশ্যক।</p>
+                    <button 
+                      onClick={handleGoogleLogin}
+                      className="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white font-extrabold text-xs py-2.5 px-4 rounded-xl shadow-md flex items-center justify-center gap-1.5 hover:opacity-90 active:scale-95 transition-transform cursor-pointer"
+                    >
+                      <User className="w-3.5 h-3.5" /> গুগল একাউন্ট দিয়ে লগইন করুন
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => (window as any)._handleInitiateSeriesPurchase()}
+                    disabled={isProcessingPurchase}
+                    className="w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white font-extrabold text-xs py-3 rounded-xl shadow-lg hover:shadow-indigo-500/10 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <span>{isProcessingPurchase ? 'প্রসেসিং হচ্ছে...' : 'এখনই কিনুন (Pay Now)'}</span>
+                    <span className="text-[10.5px] bg-white/15 px-2 py-0.5 rounded-lg">
+                      ₹{selectedPurchaseSeries.salePrice - (couponDiscount ? Math.round((selectedPurchaseSeries.salePrice * couponDiscount) / 100) : 0)}
+                    </span>
+                  </button>
+                )}
+
+                <button 
+                  onClick={() => setSelectedPurchaseSeries(null)}
+                  className="w-full text-center text-[10.5px] font-black text-slate-400 hover:text-slate-500 py-1"
+                >
+                  ফিরে যান
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Cashfree Payment Verification Loader */}
+        {verifyingSeriesPayment && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn font-sans">
+            <div className="bg-white dark:bg-slate-900 rounded-[28px] p-8 max-w-sm w-full text-center space-y-4 shadow-2xl border border-slate-150 dark:border-slate-800">
+              <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto" />
+              <div className="space-y-1.5">
+                <h3 className="text-sm font-black text-slate-800 dark:text-slate-100">পেমেন্ট ভেরিফিকেশন হচ্ছে...</h3>
+                <p className="text-[11px] text-slate-400 font-bold">ক্যাশফ্রি সুরক্ষিত গেটওয়ে থেকে আপনার পেমেন্ট কনফার্মেশন সংগ্রহ করা হচ্ছে। দয়া করে অপেক্ষা করুন।</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Series Purchase Success confirmation modal */}
+        {seriesPaymentSuccess && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn font-sans">
+            <div className="bg-white dark:bg-slate-900 rounded-[28px] p-6 max-w-sm w-full text-center space-y-4 shadow-2xl border border-emerald-200 dark:border-emerald-950/50">
+              <div className="w-14 h-14 bg-emerald-50 dark:bg-emerald-950/40 rounded-full flex items-center justify-center text-emerald-600 text-2xl mx-auto shadow-inner border border-emerald-200">
+                🎉
+              </div>
+              <div className="space-y-1.5">
+                <h3 className="text-sm font-black text-slate-800 dark:text-slate-100">পেমেন্ট সফল হয়েছে!</h3>
+                <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-extrabold bg-emerald-50 dark:bg-emerald-950/20 p-2.5 rounded-xl border border-emerald-150">
+                  আপনার নির্বাচিত <strong>{seriesPaymentSuccessName || 'মক টেস্ট সিরিজ'}</strong> সফলভাবে আনলক করা হয়েছে।
+                </p>
+                <p className="text-[10px] text-slate-400 font-bold font-sans">এখন আপনি এই সিরিজের সমস্ত মক টেস্ট কোনো বাধা ছাড়াই শুরু করতে পারেন। সেরা প্রস্তুতি নিন!</p>
+              </div>
+              <button 
+                onClick={() => {
+                  setSeriesPaymentSuccess(null);
+                  setSeriesPaymentSuccessName(null);
+                }}
+                className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-extrabold text-xs py-2.5 px-4 rounded-xl shadow-md active:scale-95 transition-transform"
+              >
+                পড়াশোনা শুরু করুন
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Global Smart Premium Popup */}
         {showPremiumPopup && (

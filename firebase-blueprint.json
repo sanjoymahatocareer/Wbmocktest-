@@ -1,0 +1,153 @@
+{
+  "entities": {
+    "Subscription": {
+      "title": "Subscription",
+      "description": "Premium access status of students",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase authenticated UID of current student"
+        },
+        "planName": {
+          "type": "string",
+          "description": "Name of the activated subscription plan"
+        },
+        "price": {
+          "type": "number",
+          "description": "Amount paid for subscription in INR"
+        },
+        "maxTests": {
+          "type": "number",
+          "description": "Total count of accessible mock tests under active plan tier"
+        },
+        "purchaseDate": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO timestamp representing active subscription purchase date"
+        },
+        "expiryDate": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO timestamp representing subscription expiration date"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "inactive"],
+          "description": "Status state constraint of this subscription"
+        },
+        "orderId": {
+          "type": "string",
+          "description": "Associated Cashfree or Manual Order reference identifier"
+        }
+      },
+      "required": ["userId", "planName", "price", "maxTests", "purchaseDate", "expiryDate", "status", "orderId"]
+    },
+    "PaymentLog": {
+      "title": "PaymentLog",
+      "description": "Registry of initiated and processed payment requests via Cashfree PG",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique purchase transaction ID matching orderId"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Firebase UID of student requesting purchase"
+        },
+        "userEmail": {
+          "type": "string",
+          "description": "E-mail of the user initiating payment transaction"
+        },
+        "userName": {
+          "type": "string",
+          "description": "Full name of the user initiating payment transaction"
+        },
+        "orderId": {
+          "type": "string",
+          "description": "Predefined order identifier corresponding to Cashfree payment ID"
+        },
+        "amount": {
+          "type": "number",
+          "description": "Price matching subscription tier value"
+        },
+        "planName": {
+          "type": "string",
+          "description": "Descriptive subscription tier purchased"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["PENDING", "PAID"],
+          "description": "Status condition of current payment transactions"
+        },
+        "purchaseDate": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Date-time when payment transaction was registered"
+        },
+        "expiryDate": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Hypothetical expiration if PAID status is verified"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Original transaction log creation timestamp"
+        },
+        "paymentId": {
+          "type": "string",
+          "description": "Verified transaction ID returned in webhook response from Cashfree"
+        }
+      },
+      "required": ["id", "userId", "userEmail", "userName", "orderId", "amount", "planName", "status", "purchaseDate", "expiryDate", "createdAt"]
+    },
+    "UserGamification": {
+      "title": "UserGamification",
+      "description": "User gamification points, badges, completed tests, and streaks",
+      "type": "object",
+      "properties": {
+        "points": { "type": "number" },
+        "streakCount": { "type": "number" },
+        "lastActivityDate": { "type": "string" },
+        "district": { "type": "string" },
+        "badges": { "type": "array", "items": { "type": "string" } },
+        "testsCompletedCount": { "type": "number" }
+      },
+      "required": ["points", "streakCount", "lastActivityDate", "district"]
+    },
+    "LeaderboardEntry": {
+      "title": "LeaderboardEntry",
+      "description": "Individual leaderboard profile displayed state-wide in West Bengal",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "district": { "type": "string" },
+        "points": { "type": "number" },
+        "streakCount": { "type": "number" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "name", "district", "points", "streakCount", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "subscriptions/{userId}": {
+      "schema": "Subscription",
+      "description": "Subscribed user list tracking access level tier and durations"
+    },
+    "payments/{paymentId}": {
+      "schema": "PaymentLog",
+      "description": "Payments initiated or completed by learners verified by Cashfree callback handler"
+    },
+    "users_gamification/{userId}": {
+      "schema": "UserGamification",
+      "description": "Saves user profile game stats locally synced to Cloud Firestore"
+    },
+    "leaderboard/{userId}": {
+      "schema": "LeaderboardEntry",
+      "description": "Live leaderboard entry for top performers in state-wide WB mock exams"
+    }
+  }
+}

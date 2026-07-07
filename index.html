@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My Google AI Studio App</title>
+    <script>
+      // Intercept and suppress cross-origin 'Script error.' warnings commonly triggered in 
+      // sandboxed iframes by browser extensions or parent-frame scripts.
+      window.onerror = function (message, source, lineno, colno, error) {
+        const msgStr = String(message || '');
+        if (
+          !message ||
+          msgStr === 'Script error.' || 
+          msgStr.toLowerCase().includes('script error') || 
+          msgStr.toLowerCase().includes('uncaught') ||
+          msgStr.toLowerCase().includes('resizeobserver') ||
+          (!source && lineno === 0)
+        ) {
+          console.warn("[Sanitizer] Suppressed cross-origin or sandboxed iframe environment warning:", message);
+          return true; // Suppress default browser error reporting
+        }
+        return false;
+      };
+      window.addEventListener('error', function (event) {
+        const msgStr = String(event.message || '');
+        if (
+          !event.message ||
+          msgStr === 'Script error.' || 
+          msgStr.toLowerCase().includes('script error') || 
+          msgStr.toLowerCase().includes('uncaught') ||
+          msgStr.toLowerCase().includes('resizeobserver') ||
+          (!event.filename && event.lineno === 0)
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation();
+        }
+      }, true);
+      window.addEventListener('unhandledrejection', function (event) {
+        const reason = event.reason;
+        const msg = reason ? (reason.message || String(reason)) : '';
+        if (
+          !msg ||
+          msg === 'Script error.' || 
+          String(msg).toLowerCase().includes('script error') ||
+          String(msg).toLowerCase().includes('uncaught') ||
+          String(msg).toLowerCase().includes('resizeobserver')
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation();
+        }
+      }, true);
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

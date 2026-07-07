@@ -1,0 +1,6 @@
+{
+  "name": "WBMockTest",
+  "description": "পশ্চিমবঙ্গের সেরা মক টেস্ট প্ল্যাটফর্ম - WBMockTest.in Government Exam Mock Test Platform",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

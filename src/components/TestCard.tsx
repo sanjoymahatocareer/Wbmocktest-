@@ -18,9 +18,8 @@ export default function TestCard({
   onReqPremiumUpgrade,
   purchasedSeries = []
 }: TestCardProps) {
-  // A test is locked if it is marked premium and user doesn't have site-wide premium membership,
-  // AND the user hasn't purchased the specific series that this test belongs to.
-  const isLocked = test.isPremium && !isPremiumUser && !(test.postId && purchasedSeries.includes(test.postId));
+  // Premium removed, everything is free and unlocked
+  const isLocked = false;
 
   const handleAction = () => {
     if (isLocked) {

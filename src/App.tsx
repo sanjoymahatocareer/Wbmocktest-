@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Menu, Bell, Crown, BookOpen, AlertCircle, FileCheck, Award, 
-  HelpCircle, Trophy, User, Check, X, ShieldAlert, BookOpenCheck, Zap, Star, LogIn, LogOut, Calendar, Sparkles, ArrowLeft
+  HelpCircle, Trophy, User, Check, X, ShieldAlert, BookOpenCheck, Zap, Star, LogIn, LogOut, Calendar, Sparkles, ArrowLeft,
+  Shield, Settings, Moon, Sun, BarChart2, Home
 } from 'lucide-react';
 import { auth, googleProvider, signInWithPopup, signOut, onAuthStateChanged, User as FirebaseUser, db } from './lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -44,22 +45,58 @@ import StudyPlanner from './components/StudyPlanner';
 import GamificationDashboard from './components/GamificationDashboard';
 import DailyQuiz from './components/DailyQuiz';
 import UserDashboard from './components/UserDashboard';
+import DailyCurrentAffairs from './components/DailyCurrentAffairs';
 
 export default function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   
-  // Initialize view based on URL route
+  // Initialize view based on URL route (supports pathname starting with /admin, query parameter ?admin, or hash #admin)
   const [currentView, setView] = useState<ViewType>(() => {
     const path = window.location.pathname;
-    if (path.startsWith('/admin')) {
+    const search = window.location.search;
+    const hash = window.location.hash;
+    
+    if (path.startsWith('/admin') || search.includes('admin') || hash.startsWith('#admin')) {
       const isAdminLoggedIn = safeSessionStorage.getItem('admin_auth_token') === 'true';
-      if (path === '/admin/dashboard' && isAdminLoggedIn) {
+      if ((path === '/admin/dashboard' || hash.includes('dashboard') || search.includes('dashboard')) && isAdminLoggedIn) {
         return 'admin';
       }
       return 'admin-login';
     }
     return 'home';
   });
+
+  // Listen to browser URL/route changes to dynamically switch views without physical links on the main site
+  useEffect(() => {
+    const handleUrlChange = () => {
+      const path = window.location.pathname;
+      const search = window.location.search;
+      const hash = window.location.hash;
+      
+      if (path.startsWith('/admin') || search.includes('admin') || hash.startsWith('#admin')) {
+        const isAdminLoggedIn = safeSessionStorage.getItem('admin_auth_token') === 'true';
+        if ((path === '/admin/dashboard' || hash.includes('dashboard') || search.includes('dashboard')) && isAdminLoggedIn) {
+          setView('admin');
+        } else {
+          setView('admin-login');
+        }
+      } else if (path === '/' || path === '/home' || !path) {
+        setView((prev) => {
+          if (prev === 'admin' || prev === 'admin-login') {
+            return 'home';
+          }
+          return prev;
+        });
+      }
+    };
+
+    window.addEventListener('popstate', handleUrlChange);
+    window.addEventListener('hashchange', handleUrlChange);
+    return () => {
+      window.removeEventListener('popstate', handleUrlChange);
+      window.removeEventListener('hashchange', handleUrlChange);
+    };
+  }, []);
   
   // Dynamic State holding lists
   const [mockTests, setMockTests] = useState<MockTest[]>(() => {
@@ -138,10 +175,7 @@ export default function App() {
   }, [currentView]);
 
   const triggerPremiumPopup = () => {
-    if (isPremiumUser || hasShown24hrPopup) return;
-    setShowPremiumPopup(true);
-    setHasShown24hrPopup(true);
-    safeLocalStorage.setItem('lastPremiumPopupTime', Date.now().toString());
+    return; // Premium popup removed
   };
 
   // Condition 1 & 3 & 4: Job details timer & view count, Mock tests click
@@ -892,75 +926,252 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
           />
         </div>
       ) : (
-        /* Simulation Mobile Container to make it extremely responsive and cute */
-        <div className={`max-w-md mx-auto min-h-screen shadow-2xl relative pb-28 border-x transition-colors duration-300 ${
-          theme === 'dark' 
-            ? 'bg-[#040a1f]/95 border-slate-900/60 shadow-purple-500/5' 
-            : 'bg-slate-50/95 border-slate-200/50'
+        /* Responsive Layout Shell */
+        <div className={`w-full min-h-screen transition-colors duration-300 ${
+          theme === 'dark' ? 'bg-[#020617]' : 'bg-slate-100'
         }`}>
-          
-          {/* Sticky App Header */}
-          <Header 
-          theme={theme}
-          setTheme={handleToggleTheme}
-          currentView={currentView}
-          setView={setView}
-          isPremiumUser={isPremiumUser}
-          onOpenNotifications={() => {
-            setHasUnreadNotification(false);
-            setActiveModal('notifications');
-          }}
-          onOpenPremiumModal={() => setView('premium')}
-          hasUnreadNotification={hasUnreadNotification}
-          onOpenSidebar={() => setIsSidebarOpen(true)}
-          points={userPoints}
-          streakCount={streakCount}
-        />
-
-        {verifyingPayment && (
-          <div className="mx-4 my-2 p-4 bg-blue-550/10 border border-blue-500/20 rounded-2xl flex items-center gap-3 animate-pulse text-xs text-blue-500 font-extrabold font-sans">
-            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin shrink-0" />
-            <span>আপনার ক্যাশফ্রি পেমেন্ট যাচাই করা হচ্ছে, অনুগ্রহ করে অপেক্ষা করুন... (Verifying payment...)</span>
-          </div>
-        )}
-
-        {paymentSuccessData && (
-          <div className="mx-4 my-3 p-5 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-[24px] text-white space-y-3 shadow-lg relative overflow-hidden animate-fadeIn font-sans">
-            <div className="absolute top-[-20px] right-[-20px] w-28 h-28 bg-white/10 rounded-full blur-xl pointer-events-none" />
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row min-h-screen relative">
             
-            <div className="flex items-center gap-2.5">
-              <div className="bg-white text-emerald-600 p-1.5 rounded-full shrink-0">
-                <Check className="w-5 h-5 stroke-[3.5]" />
+            {/* Desktop Left Sidebar Menu - Only visible on md and up */}
+            <aside className="hidden md:flex flex-col w-72 border-r border-slate-150 dark:border-slate-800/80 bg-white dark:bg-[#070e27] p-6 space-y-6 shrink-0 h-screen sticky top-0 z-30 font-sans shadow-sm transition-colors duration-300">
+              {/* Logo Brand Header */}
+              <div className="flex items-center gap-3">
+                <div className="relative flex items-center justify-center w-10 h-10">
+                  <Shield className="w-9 h-9 text-[#FBBF24] fill-[#2563EB] stroke-[1.5]" />
+                  <Crown className="w-5 h-5 text-[#FBBF24] absolute -top-3 drop-shadow-sm" />
+                  <span className="absolute text-white font-black text-[11px] leading-none mt-1">WB</span>
+                </div>
+                <div className="flex flex-col pt-0.5">
+                  <h1 className="text-[18px] font-black tracking-tight text-[#0A1B3D] dark:text-white leading-none">
+                    <span className="text-[#2563EB]">WB</span>MockTest
+                  </h1>
+                  <span className="text-[9.5px] text-slate-500 dark:text-slate-400 font-bold tracking-tight mt-1">
+                    পশ্চিমবঙ্গ চাকরির সেরা প্রস্তুতি
+                  </span>
+                </div>
               </div>
-              <div>
-                <h4 className="text-sm font-black text-white leading-none">পেমেন্ট সফল হয়েছে! (Payment Success)</h4>
-                <p className="text-[10px] text-emerald-100 mt-1 leading-none font-sans">আপনার প্রিমিয়াম পাস সফলভাবে সক্রিয় করা হয়েছে</p>
-              </div>
-            </div>
 
-            <div className="bg-slate-950/20 rounded-2xl p-3 border border-white/10 space-y-2 text-[11px] font-sans">
-              <div className="flex justify-between">
-                <span className="text-emerald-100">অর্ডার আইডি (Order ID):</span>
-                <span className="font-extrabold text-white">{paymentSuccessData.orderId}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-emerald-100">সক্রিয় প্ল্যান (Plan Name):</span>
-                <span className="font-extrabold text-yellow-300">{paymentSuccessData.planName}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-emerald-100">স্ট্যাটাস (Status):</span>
-                <span className="font-extrabold bg-white/20 px-2 py-0.5 rounded-lg text-white">সক্রিয় (ACTIVE)</span>
-              </div>
-            </div>
+              {/* Profile card/auth state inside Sidebar */}
+              {firebaseUser ? (
+                <div className="p-3.5 bg-slate-50 dark:bg-slate-900/60 rounded-[20px] border border-slate-150 dark:border-slate-800 flex items-center justify-between gap-3 shadow-inner">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-[#2563EB] to-indigo-600 text-white flex items-center justify-center font-black text-sm shrink-0 shadow-sm">
+                      {firebaseUser.photoURL ? (
+                        <img src={firebaseUser.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      ) : (
+                        (firebaseUser.displayName || 'U').substring(0, 1)
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span className="text-[13px] font-black text-slate-800 dark:text-white block truncate leading-tight">
+                        {profileName || firebaseUser.displayName || 'পরীক্ষার্থী'}
+                      </span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 block truncate font-bold mt-0.5">
+                        {firebaseUser.email}
+                      </span>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={handleSignOut}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-all cursor-pointer shrink-0"
+                    title="লগ আউট"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="p-3.5 bg-slate-50 dark:bg-slate-900/40 rounded-[20px] border border-slate-150 dark:border-slate-800 text-center space-y-2">
+                  <span className="text-[11px] text-slate-400 font-bold block">আপনার অ্যাকাউন্ট নেই?</span>
+                  <button 
+                    onClick={handleGoogleLogin}
+                    className="w-full py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-90 text-white rounded-xl text-xs font-black shadow-md flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-transform"
+                  >
+                    <User className="w-3.5 h-3.5" /> গুগল দিয়ে লগইন করুন
+                  </button>
+                </div>
+              )}
 
-            <button 
-              onClick={() => setPaymentSuccessData(null)}
-              className="w-full py-2.5 bg-white text-emerald-600 hover:bg-emerald-50 rounded-xl text-xs font-black transition-all cursor-pointer text-center"
-            >
-              ধন্যবাদ, মক টেস্ট ডিরেক্টরি খুলুন ➔
-            </button>
-          </div>
-        )}
+              {/* Navigation Menu Links */}
+              <nav className="flex-1 space-y-1.5 overflow-y-auto pr-1">
+                {[
+                  { id: 'home', label: 'হোম ড্যাশবোর্ড', icon: Home },
+                  { id: 'my-tests', label: 'আমার টেস্ট সিরিজ', icon: BookOpen },
+                  { id: 'mock-tests', label: 'সকল মক টেস্ট', icon: BookOpenCheck },
+                  { id: 'results', label: 'GK & Current Affairs', icon: Zap },
+                  { id: 'performance', label: 'পারফরম্যান্স ও স্কোর', icon: BarChart2 },
+                  { id: 'question-bank', label: 'প্রশ্ন ব্যাংক ডিরেক্টরি', icon: HelpCircle },
+                  { id: 'profile', label: 'আমার প্রোফাইল', icon: User },
+                ].map((item) => {
+                  const Icon = item.icon;
+                  const isActive = currentView === item.id || 
+                    (item.id === 'my-tests' && (currentView === 'test-running' || currentView === 'test-result'));
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => setView(item.id as ViewType)}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        isActive 
+                          ? 'bg-gradient-to-r from-blue-50 to-indigo-50/50 dark:from-blue-950/40 dark:to-indigo-950/10 text-blue-600 dark:text-blue-400 border-l-[3.5px] border-blue-500 rounded-l-none' 
+                          : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900/60 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-blue-600 dark:text-blue-400' : ''}`} />
+                      <span>{item.label}</span>
+                    </button>
+                  );
+                })}
+              </nav>
+
+              {/* Theme toggle and support information footer */}
+              <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-semibold">
+                  <span>থিম পরিবর্তন করুন:</span>
+                  <button
+                    onClick={handleToggleTheme}
+                    className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 transition-colors duration-200 cursor-pointer"
+                  >
+                    {theme === 'light' ? (
+                      <Moon className="w-4 h-4 text-indigo-600" />
+                    ) : (
+                      <Sun className="w-4 h-4 text-amber-400" />
+                    )}
+                  </button>
+                </div>
+                <div className="text-[10px] text-slate-400 dark:text-slate-500 font-bold leading-tight">
+                  <span>WB Mock Test © 2026</span>
+                  <span className="block mt-0.5">সহায়তা: support@wbmocktest.com</span>
+                </div>
+              </div>
+            </aside>
+
+            {/* Main Application Container */}
+            <div className="flex-1 flex flex-col min-h-screen bg-[#040a1f]/95 dark:bg-[#040a1f]/95 md:bg-transparent md:dark:bg-transparent">
+              
+              {/* App Header (Sticky, only shown on mobile/tablet) */}
+              <div className="md:hidden">
+                <Header 
+                  theme={theme}
+                  setTheme={handleToggleTheme}
+                  currentView={currentView}
+                  setView={setView}
+                  isPremiumUser={isPremiumUser}
+                  onOpenNotifications={() => {
+                    setHasUnreadNotification(false);
+                    setActiveModal('notifications');
+                  }}
+                  onOpenPremiumModal={() => setView('premium')}
+                  hasUnreadNotification={hasUnreadNotification}
+                  onOpenSidebar={() => setIsSidebarOpen(true)}
+                  points={userPoints}
+                  streakCount={streakCount}
+                />
+              </div>
+
+              {/* Desktop Dashboard Header (Sticky topbar only on desktop md and up) */}
+              <header className="hidden md:flex items-center justify-between h-20 px-8 bg-white dark:bg-[#070e27] border-b border-slate-150 dark:border-slate-800/80 sticky top-0 z-20 font-sans transition-colors duration-300">
+                <div>
+                  <h2 className="text-base font-black text-slate-800 dark:text-white leading-tight">
+                    {currentView === 'home' && 'ড্যাশবোর্ড ওভারভিউ (Dashboard Overview)'}
+                    {currentView === 'my-tests' && 'আমার টেস্ট ডিরেক্টরি (My Test Directory)'}
+                    {currentView === 'mock-tests' && 'চলতি লাইভ মক টেস্ট সমূহ (Live Mock Tests)'}
+                    {currentView === 'question-bank' && 'প্রশ্ন ব্যাংক ডিরেক্টরি (Question Bank)'}
+                    {currentView === 'results' && 'GK & Current Affairs'}
+                    {currentView === 'performance' && 'আমার পারফরম্যান্স রিপোর্ট ও প্রগ্রেস'}
+                    {currentView === 'profile' && 'প্রোফাইল সেটিংস ও বিবরণী (Profile)'}
+                    {currentView === 'study-plan' && 'স্টাডি প্ল্যানার ও স্টাডি গাইড'}
+                    {currentView === 'premium' && 'মেম্বারশিপ প্ল্যান ও লাইফটাইম পাস'}
+                    {currentView === 'test-running' && 'চলতি পরীক্ষা (Active Exam)'}
+                    {currentView === 'test-result' && 'পরীক্ষার বিস্তারিত ফলাফল (Test Report)'}
+                    {currentView === 'job-list' && 'কেন্দ্রীয় সরকারি চাকরির বিজ্ঞপ্তি সমূহ'}
+                    {currentView === 'state-job-list' && 'রাজ্য সরকারি চাকরির বিজ্ঞপ্তি সমূহ'}
+                    {currentView === 'job-details' && 'চাকরির পদের বিস্তারিত তথ্য ও পরীক্ষার সিলেবাস'}
+                  </h2>
+                  <p className="text-[11px] text-slate-400 dark:text-slate-400 font-bold mt-1">
+                    আজকের তারিখ: {new Date().toLocaleDateString('bn-BD', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3.5">
+                  {/* Streak widget */}
+                  {streakCount !== undefined && (
+                    <div className="flex items-center gap-1.5 px-3 py-2 bg-orange-50 dark:bg-orange-950/30 text-orange-600 dark:text-orange-400 rounded-xl border border-orange-200/20 text-xs font-black shadow-sm select-none">
+                      <span className="text-sm">🔥</span>
+                      <span>স্ট্রিক: {streakCount} দিন</span>
+                    </div>
+                  )}
+
+                  {/* Points widget */}
+                  {userPoints !== undefined && (
+                    <div className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 rounded-xl border border-amber-200/20 text-xs font-black shadow-sm select-none">
+                      <span className="text-sm">🪙</span>
+                      <span>{userPoints} XP</span>
+                    </div>
+                  )}
+
+                  {/* Desktop Notification Bell */}
+                  <button
+                    onClick={() => {
+                      setHasUnreadNotification(false);
+                      setActiveModal('notifications');
+                    }}
+                    className="p-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-white transition-all cursor-pointer relative"
+                    title="বিজ্ঞপ্তি সমূহ"
+                  >
+                    <Bell className="w-5 h-5" />
+                    {hasUnreadNotification && (
+                      <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-rose-500 border-2 border-white dark:border-[#070e27] rounded-full" />
+                    )}
+                  </button>
+                </div>
+              </header>
+
+              {/* Main Content Pane */}
+              <div className="flex-1 max-w-full md:max-w-4xl lg:max-w-5xl mx-auto w-full">
+                
+                {verifyingPayment && (
+                  <div className="mx-4 my-2 p-4 bg-blue-550/10 border border-blue-500/20 rounded-2xl flex items-center gap-3 animate-pulse text-xs text-blue-500 font-extrabold font-sans">
+                    <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin shrink-0" />
+                    <span>আপনার ক্যাশফ্রি পেমেন্ট যাচাই করা হচ্ছে, অনুগ্রহ করে অপেক্ষা করুন... (Verifying payment...)</span>
+                  </div>
+                )}
+
+                {paymentSuccessData && (
+                  <div className="mx-4 my-3 p-5 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-[24px] text-white space-y-3 shadow-lg relative overflow-hidden animate-fadeIn font-sans">
+                    <div className="absolute top-[-20px] right-[-20px] w-28 h-28 bg-white/10 rounded-full blur-xl pointer-events-none" />
+                    
+                    <div className="flex items-center gap-2.5">
+                      <div className="bg-white text-emerald-600 p-1.5 rounded-full shrink-0">
+                        <Check className="w-5 h-5 stroke-[3.5]" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-black text-white leading-none">পেমেন্ট সফল হয়েছে! (Payment Success)</h4>
+                        <p className="text-[10px] text-emerald-100 mt-1 leading-none font-sans">আপনার প্রিমিয়াম পাস সফলভাবে সক্রিয় করা হয়েছে</p>
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-950/20 rounded-2xl p-3 border border-white/10 space-y-2 text-[11px] font-sans">
+                      <div className="flex justify-between">
+                        <span className="text-emerald-100">অর্ডার আইডি (Order ID):</span>
+                        <span className="font-extrabold text-white">{paymentSuccessData.orderId}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-emerald-100">সক্রিয় প্ল্যান (Plan Name):</span>
+                        <span className="font-extrabold text-yellow-300">{paymentSuccessData.planName}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-emerald-100">স্ট্যাটাস (Status):</span>
+                        <span className="font-extrabold bg-white/20 px-2 py-0.5 rounded-lg text-white">সক্রিয় (ACTIVE)</span>
+                      </div>
+                    </div>
+
+                    <button 
+                      onClick={() => setPaymentSuccessData(null)}
+                      className="w-full py-2.5 bg-white text-emerald-600 hover:bg-emerald-50 rounded-xl text-xs font-black transition-all cursor-pointer text-center"
+                    >
+                      ধন্যবাদ, মক টেস্ট ডিরেক্টরি খুলুন ➔
+                    </button>
+                  </div>
+                )}
 
         {/* Sidebar Drawer slide-over menu */}
         <SidebarDrawer 
@@ -1048,13 +1259,7 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
               {/* Live server metrics */}
               <LiveStats />
 
-              {/* Latest news & government announcements (Khobor Section) */}
-              <KhoborSection 
-                onNewsClick={(item) => {
-                  setSelectedNewsId(item.id);
-                  setView('news-details');
-                }}
-              />
+
 
               {/* Footer */}
               <div className="text-center py-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
@@ -1138,6 +1343,12 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
                   setCurrentResult(res);
                   setView('test-result');
                 }}
+                activeTab={
+                  currentView === 'my-tests' ? 'my-tests' :
+                  currentView === 'results' ? 'results' :
+                  currentView === 'performance' ? 'performance' :
+                  currentView === 'profile' ? 'profile' : 'home'
+                }
               />
             </div>
           )}
@@ -1493,11 +1704,16 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
 
         {/* Floating Bottom Sticky Navigation Tabs */}
         {currentView !== 'test-running' && (
-          <BottomNav currentView={currentView} setView={setView} />
+          <div className="md:hidden">
+            <BottomNav currentView={currentView} setView={setView} />
+          </div>
         )}
 
-      </div>
-    )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

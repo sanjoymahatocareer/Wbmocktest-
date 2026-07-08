@@ -219,11 +219,12 @@ export function getMockTests(): MockTest[] {
           changed = true;
         }
       });
+      // Force all tests to not be premium so premium is removed and only free remains
+      const allFree = updated.map(t => ({ ...t, isPremium: false }));
       if (changed) {
-        safeLocalStorage.setItem('wbm_tests', JSON.stringify(updated));
-        return updated;
+        safeLocalStorage.setItem('wbm_tests', JSON.stringify(allFree));
       }
-      return parsed;
+      return allFree;
     }
     return [];
   } catch (e) {

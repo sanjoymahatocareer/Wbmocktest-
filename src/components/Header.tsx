@@ -85,7 +85,7 @@ export default function Header({
           {/* Flame streak indicator */}
           {!isTestingMode && streakCount !== undefined && (
             <div 
-              onClick={() => setView('results')}
+              onClick={() => setView('daily-ca')}
               className="flex items-center gap-1 px-2 py-1 bg-orange-50 dark:bg-orange-950/30 text-orange-600 dark:text-orange-400 rounded-xl border border-orange-200/25 active:scale-95 transition-all text-[11px] font-black cursor-pointer shadow-sm hover:bg-orange-100/40 select-none animate-fadeIn"
               title="ধারাবাহিক পড়াশোনার মাইলস্টোন (স্ট্রিক)"
             >
@@ -97,7 +97,7 @@ export default function Header({
           {/* Points indicator */}
           {!isTestingMode && points !== undefined && (
             <div 
-              onClick={() => setView('results')}
+              onClick={() => setView('daily-ca')}
               className="flex items-center gap-1 px-2.5 py-1 bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 rounded-xl border border-amber-200/25 active:scale-95 transition-all text-[11px] font-black cursor-pointer shadow-sm hover:bg-amber-100/40 select-none animate-fadeIn"
               title="আপনার সঞ্চিত এক্সপেরিযেন্স পয়েন্ট (XP)"
             >
@@ -119,20 +119,7 @@ export default function Header({
             )}
           </button>
 
-          {/* Premium Pass Crown Icon */}
-          {!isTestingMode && (
-            <button
-              onClick={onOpenPremiumModal}
-              className={`p-1.5 rounded-xl transition-all duration-300 active:scale-95 flex items-center justify-center border ${
-                isPremiumUser 
-                  ? 'bg-amber-50 border-amber-300 text-amber-650 dark:bg-amber-950/40 dark:border-amber-800 dark:text-amber-400' 
-                  : 'bg-gradient-to-br from-amber-400 via-yellow-500 to-orange-500 border-yellow-405 text-white shadow-sm shadow-amber-500/10'
-              }`}
-              title="প্রিমিয়াম মেম্বারশিপ"
-            >
-              <Crown className="w-5 h-5" />
-            </button>
-          )}
+          {/* Premium icon removed */}
 
           {/* Notification Bell */}
           {!isTestingMode && (

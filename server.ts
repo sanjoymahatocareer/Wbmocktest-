@@ -3,6 +3,7 @@ import path from "path";
 import crypto from "crypto";
 import fs from "fs";
 import { Cashfree } from "cashfree-pg";
+import { generateSitemapXml } from "./src/lib/seo";
 
 // Initialize Firebase statically with known configuration parameters
 const firebaseConfig = {
@@ -228,6 +229,21 @@ app.use(express.json({
     req.rawBody = buf.toString();
   }
 }));
+
+// Sitemap generator endpoint for SEO crawling
+app.get("/sitemap.xml", (req, res) => {
+  const proto = req.headers["x-forwarded-proto"] || req.protocol || "http";
+  const host = req.headers["x-forwarded-host"] || req.get("host") || "wbmocktest.in";
+  const domain = `${proto}://${host}`;
+  try {
+    const sitemapXml = generateSitemapXml(domain);
+    res.header("Content-Type", "application/xml");
+    res.send(sitemapXml);
+  } catch (err: any) {
+    console.error("Sitemap generation error:", err);
+    res.status(500).send("Error generating sitemap");
+  }
+});
 
 // Cashfree integrations have been completely removed per request.
 // Fallback stubs are maintained for routing compatibility.

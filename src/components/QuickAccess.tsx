@@ -1,5 +1,5 @@
 import React from 'react';
-import { BookOpen, FileCheck, HelpCircle, GraduationCap, Trophy, Award, Globe, Zap } from 'lucide-react';
+import { BookOpen, FileCheck, HelpCircle, GraduationCap, Trophy, Award, Globe, Zap, Newspaper } from 'lucide-react';
 import { ViewType } from '../types';
 
 interface QuickAccessProps {
@@ -46,10 +46,10 @@ export default function QuickAccess({
       action: onOpenSyllabus
     },
     {
-      label: 'GK & Current Affairs',
-      icon: Zap,
+      label: 'ডেইলি সিএ',
+      icon: Newspaper,
       color: 'bg-orange-500 text-white shadow-orange-500/10',
-      action: () => setView('results')
+      action: () => setView('daily-ca')
     },
     {
       label: 'অ্যাডমিট কার্ড',

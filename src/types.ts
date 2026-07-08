@@ -115,7 +115,7 @@ export interface SuccessStory {
   avatarUrl: string;
 }
 
-export type ViewType = 'home' | 'mock-tests' | 'question-bank' | 'results' | 'profile' | 'test-running' | 'test-result' | 'admin' | 'study-plan' | 'premium' | 'job-list' | 'state-job-list' | 'job-details' | 'admin-login' | 'post-list' | 'news-details' | 'my-tests' | 'performance';
+export type ViewType = 'home' | 'mock-tests' | 'question-bank' | 'results' | 'profile' | 'test-running' | 'test-result' | 'admin' | 'study-plan' | 'premium' | 'job-list' | 'state-job-list' | 'job-details' | 'admin-login' | 'post-list' | 'news-details' | 'my-tests' | 'performance' | 'daily-ca';
 
 export interface ActiveSubscription {
   userId: string;

@@ -19,6 +19,7 @@ interface UserDashboardProps {
   setIsPremiumUser: (val: boolean) => void;
   setView: (view: string) => void;
   onSelectResult: (result: TestResult) => void;
+  activeTab?: 'home' | 'my-tests' | 'results' | 'performance' | 'profile';
 }
 
 export default function UserDashboard({
@@ -31,10 +32,17 @@ export default function UserDashboard({
   isPremiumUser,
   setIsPremiumUser,
   setView,
-  onSelectResult
+  onSelectResult,
+  activeTab: propActiveTab
 }: UserDashboardProps) {
   // Current active sub-tab inside the Dashboard
-  const [activeTab, setActiveTab] = useState<'home' | 'my-tests' | 'results' | 'performance' | 'profile'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'my-tests' | 'results' | 'performance' | 'profile'>(propActiveTab || 'home');
+
+  useEffect(() => {
+    if (propActiveTab) {
+      setActiveTab(propActiveTab);
+    }
+  }, [propActiveTab]);
   
   // Package purchase simulation state (persisted locally)
   const [hasPurchasedPanchayat, setHasPurchasedPanchayat] = useState<boolean>(() => {
@@ -87,7 +95,7 @@ export default function UserDashboard({
       totalMarks: 100,
       durationMinutes: 90,
       difficulty: 'Medium',
-      isPremium: true,
+      isPremium: false,
       completed: false,
       available: true
     },
@@ -100,7 +108,7 @@ export default function UserDashboard({
       totalMarks: 100,
       durationMinutes: 90,
       difficulty: 'Medium',
-      isPremium: true,
+      isPremium: false,
       completed: false,
       available: true
     },
@@ -113,7 +121,7 @@ export default function UserDashboard({
       totalMarks: 100,
       durationMinutes: 90,
       difficulty: 'Hard',
-      isPremium: true,
+      isPremium: false,
       completed: false,
       available: false
     },
@@ -126,7 +134,7 @@ export default function UserDashboard({
       totalMarks: 100,
       durationMinutes: 90,
       difficulty: 'Hard',
-      isPremium: true,
+      isPremium: false,
       completed: false,
       available: false
     },
@@ -139,7 +147,7 @@ export default function UserDashboard({
       totalMarks: 100,
       durationMinutes: 90,
       difficulty: 'Hard',
-      isPremium: true,
+      isPremium: false,
       completed: false,
       available: false
     }
@@ -176,7 +184,7 @@ export default function UserDashboard({
       totalMarks: 5,
       durationMinutes: 5,
       difficulty: testNum <= 2 ? 'Easy' : testNum <= 4 ? 'Medium' : 'Hard',
-      isPremium: testNum > 1,
+      isPremium: false,
       questions: [
         {
           id: `panchayat-q-${testNum}-1`,
@@ -279,24 +287,14 @@ export default function UserDashboard({
               </span>
             </div>
             <h3 className="text-base font-black text-white mt-2 leading-none">
-              আপনার প্ল্যান: {hasPurchasedPanchayat ? (
-                <span className="text-yellow-400">Premium Premium</span>
-              ) : (
-                <span className="text-slate-400">ফ্রি অ্যাকাউন্ট</span>
-              )}
+              আপনার প্ল্যান: <span className="text-emerald-400">অল-অ্যাক্সেস এলিট পাস (ফ্রি)</span>
             </h3>
           </div>
           
           <div className="text-right">
-            {hasPurchasedPanchayat ? (
-              <span className="text-[9px] bg-emerald-500/15 border border-emerald-500/20 text-emerald-400 font-extrabold px-2 py-0.5 rounded-full uppercase">
-                Active (সক্রিয়)
-              </span>
-            ) : (
-              <span className="text-[9px] bg-amber-500/15 border border-amber-500/20 text-amber-400 font-extrabold px-2 py-0.5 rounded-full uppercase animate-pulse">
-                Limit (সীমিত)
-              </span>
-            )}
+            <span className="text-[9px] bg-emerald-500/15 border border-emerald-500/20 text-emerald-400 font-extrabold px-2 py-0.5 rounded-full uppercase">
+              Active (সব উন্মুক্ত)
+            </span>
           </div>
         </div>
 
@@ -304,37 +302,15 @@ export default function UserDashboard({
           <div>
             <span className="text-[9px] text-slate-500 block uppercase font-bold">কতদিন Valid (Validity)</span>
             <span className="font-extrabold text-white text-xs mt-0.5 block">
-              {hasPurchasedPanchayat ? '৩৬৪ দিন বাকি (364 Days Left)' : 'মেয়াদ শেষ'}
+              আজীবন (Lifetime)
             </span>
           </div>
           <div>
             <span className="text-[9px] text-slate-500 block uppercase font-bold">Expiry Date (মেয়াদ শেষের তারিখ)</span>
             <span className="font-extrabold text-white text-xs mt-0.5 block">
-              {hasPurchasedPanchayat ? '০৬ জুলাই, ২০২৭' : 'N/A'}
+              কখনো শেষ হবে না (Unlimited)
             </span>
           </div>
-        </div>
-
-        <div className="mt-4">
-          {hasPurchasedPanchayat ? (
-            <button 
-              onClick={() => {
-                alert('আপনার এলিট প্রিমিয়াম পাসটি ইতিমধ্যেই সক্রিয় রয়েছে। মেয়াদ বাড়াতে রিনিউ করুন।');
-              }}
-              className="w-full py-2.5 bg-white/10 hover:bg-white/15 border border-white/15 text-white text-xs font-black rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>রিনিউ করুন (Renew Pass)</span>
-            </button>
-          ) : (
-            <button 
-              onClick={triggerBuySimulation}
-              className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white text-xs font-black rounded-xl shadow-md shadow-orange-950/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.98]"
-            >
-              <Crown className="w-3.5 h-3.5 fill-white" />
-              <span>WB Panchayat Mock Test Series কিনুন ➔</span>
-            </button>
-          )}
         </div>
       </div>
 
@@ -352,7 +328,10 @@ export default function UserDashboard({
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
+              onClick={() => {
+                setActiveTab(tab.id as any);
+                setView(tab.id);
+              }}
               className={`flex-1 py-2 flex flex-col items-center gap-1 relative border-b-2 transition-all cursor-pointer ${
                 isActive 
                   ? 'border-blue-600 text-blue-600 dark:text-blue-400 font-black' 
@@ -512,7 +491,7 @@ export default function UserDashboard({
               {/* MOCK TESTS 1-6 DYNAMIC LIST */}
               <div className="space-y-3">
                 {panchayatTestsList.map((test) => {
-                  const isLocked = test.isPremium && !hasPurchasedPanchayat;
+                  const isLocked = false;
                   
                   return (
                     <div 
@@ -1014,21 +993,6 @@ export default function UserDashboard({
                 >
                   <LogOut className="w-3.5 h-3.5" />
                   <span>লগআউট করুন (Logout)</span>
-                </button>
-
-                <button 
-                  onClick={() => {
-                    setView('admin-login');
-                    try {
-                      window.history.pushState({}, document.title, '/admin');
-                    } catch (e) {
-                      console.warn(e);
-                    }
-                  }}
-                  className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-black rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 shadow-md shadow-amber-950/10"
-                >
-                  <Shield className="w-3.5 h-3.5" />
-                  <span>অ্যাডমিন প্যানেল প্রবেশ করুন (Admin Panel)</span>
                 </button>
               </div>
             </div>

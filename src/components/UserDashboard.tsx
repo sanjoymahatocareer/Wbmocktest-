@@ -262,6 +262,9 @@ export default function UserDashboard({
             <img 
               src={firebaseUser.photoURL} 
               alt={profileName} 
+              width={40}
+              height={40}
+              loading="lazy"
               className="w-full h-full rounded-full object-cover"
               referrerPolicy="no-referrer"
             />

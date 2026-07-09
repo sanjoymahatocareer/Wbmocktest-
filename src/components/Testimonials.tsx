@@ -48,6 +48,9 @@ export default function Testimonials({ stories }: TestimonialsProps) {
               <img 
                 src={current.avatarUrl} 
                 alt={current.name}
+                width={40}
+                height={40}
+                loading="lazy"
                 className="w-10 h-10 rounded-full object-cover border-2 border-white dark:border-slate-800 shadow-sm"
                 referrerPolicy="no-referrer"
               />

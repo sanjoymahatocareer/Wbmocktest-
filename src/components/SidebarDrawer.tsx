@@ -120,7 +120,7 @@ export default function SidebarDrawer({
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-[#2563EB] to-indigo-600 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-sm">
                     {firebaseUser.photoURL ? (
-                      <img src={firebaseUser.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      <img src={firebaseUser.photoURL} alt="" width={40} height={40} loading="lazy" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                     ) : (
                       (firebaseUser.displayName || 'U').substring(0, 1)
                     )}

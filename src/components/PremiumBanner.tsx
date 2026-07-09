@@ -223,7 +223,7 @@ export default function PremiumBanner({
 
               <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 flex flex-col items-center justify-center shadow-sm">
                 <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm relative">
-                  <img src={qrCodeUrl} alt="UPI QR Code" className="w-[180px] h-[180px] object-contain" />
+                  <img src={qrCodeUrl} alt="UPI QR Code" width={180} height={180} loading="lazy" className="w-[180px] h-[180px] object-contain" />
                 </div>
                 <p className="text-[11px] font-bold text-slate-400 mt-2.5">PhonePe, Google Pay, Paytm বা যেকোনো UPI অ্যাপ ব্যবহার করুন</p>
               </div>

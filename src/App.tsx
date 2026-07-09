@@ -46,9 +46,47 @@ import GamificationDashboard from './components/GamificationDashboard';
 import DailyQuiz from './components/DailyQuiz';
 import UserDashboard from './components/UserDashboard';
 import DailyCurrentAffairs from './components/DailyCurrentAffairs';
+import InfoPages from './components/InfoPages';
+import ExamSEOPage, { examSEODataList } from './components/ExamSEOPage';
+import NotificationPrompt from './components/NotificationPrompt';
+import NotificationToast from './components/NotificationToast';
+import { getRandomNotification, sendBrowserNotification, requestNotificationPermission } from './lib/notificationService';
 
 export default function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [activeToast, setActiveToast] = useState<{ title: string; body: string; id: number } | null>(null);
+
+  const triggerPushNotification = (title: string, body: string) => {
+    // 1. Try native browser notification
+    sendBrowserNotification(title, body);
+    
+    // 2. Play a gentle double chime notification sound
+    try {
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
+      gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+      osc.start();
+      
+      osc.frequency.setValueAtTime(880.00, audioCtx.currentTime + 0.12); // A5
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+      
+      setTimeout(() => {
+        osc.stop();
+        audioCtx.close();
+      }, 450);
+    } catch (e) {
+      console.log('Audio chime not supported / user gesture required:', e);
+    }
+
+    // 3. Set visual toast
+    setActiveToast({ title, body, id: Date.now() });
+  };
   
   // Initialize view based on URL route (supports pathname starting with /admin, query parameter ?admin, or hash #admin)
   const [currentView, setView] = useState<ViewType>(() => {
@@ -146,6 +184,7 @@ export default function App() {
   const [categorySearchQuery, setCategorySearchQuery] = useState<string>('');
   const [postListTitle, setPostListTitle] = useState('অ্যাডমিট কার্ড');
   const [selectedNewsId, setSelectedNewsId] = useState<string | null>(null);
+  const [selectedExamSlug, setSelectedExamSlug] = useState<string>('wb-police');
 
   // Premium Popup Smart System State
   const [showPremiumPopup, setShowPremiumPopup] = useState(false);
@@ -236,6 +275,38 @@ export default function App() {
     safeLocalStorage.setItem('jobs', JSON.stringify(jobs));
   }, [jobs]);
 
+  // Automated browser notifications periodic loop ("bar bar notification debe" - works on native push and custom visual fallback toast)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    // Send a welcome-back notification on app mount after a short delay, to demonstrate persistence
+    const lastSessionNotificationTime = sessionStorage.getItem('session_welcome_notification_sent');
+    if (!lastSessionNotificationTime) {
+      const welcomeTimer = setTimeout(() => {
+        triggerPushNotification(
+          "স্বাগতম WBMockTest.in-এ! 🔔",
+          "আমরা আপনার ব্রাউজার নোটিফিকেশন সিস্টেম সফলভাবে সক্রিয় করেছি। নতুন সরকারি চাকরির খবর এবং স্পেশাল মক টেস্টের আপডেট পেতে আমাদের সাথে জুড়ে থাকুন।"
+        );
+        sessionStorage.setItem('session_welcome_notification_sent', 'true');
+      }, 4000);
+      return () => clearTimeout(welcomeTimer);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    // Set up background interval (e.g., every 30 seconds so the user can actually experience "bar bar notifications" without waiting too long)
+    const intervalTime = 30 * 1000; 
+
+    const interval = setInterval(() => {
+      const nextNotify = getRandomNotification();
+      triggerPushNotification(nextNotify.title, nextNotify.body);
+    }, intervalTime);
+
+    return () => clearInterval(interval);
+  }, []);
+
   // Active testing state
   const [activeTest, setActiveTest] = useState<MockTest | null>(null);
   const [currentResult, setCurrentResult] = useState<TestResult | null>(null);
@@ -243,6 +314,9 @@ export default function App() {
 
   // Modals state
   const [activeModal, setActiveModal] = useState<'syllabus' | 'current-affairs' | 'admit-card' | 'previous-papers' | 'premium-buy' | 'notifications' | null>(null);
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission>(() => 
+    typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'default'
+  );
   const [hasUnreadNotification, setHasUnreadNotification] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -646,7 +720,7 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
     // 1. Category Filter
     if (selectedCategory && test.examType !== selectedCategory) {
       // Also check if the test belongs to a post in this category
-      const associatedPost = posts.find(p => p.id === test.postId);
+      const associatedPost = posts?.find(p => p && p.id === test.postId);
       if (!associatedPost || associatedPost.categoryId !== selectedCategory) {
         return false;
       }
@@ -875,17 +949,89 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
 
             {/* SYSTEM NOTIFICATIONS */}
             {activeModal === 'notifications' && (
-              <div className="space-y-3 font-sans">
-                {[
-                  { title: 'নতুন ৫টি মক টেস্ট সিরিজ যুক্ত করা হয়েছে', time: '২ ঘণ্টা আগে' },
-                  { title: 'WBCS পরীক্ষার স্পেশাল পেপার আপডেট সম্পূর্ণ', time: '১ দিন আগে' },
-                  { title: 'WBMockTest.in মেম্বারশিপে ২০% বর্ষাকালীন ডিসকাউন্ট', time: '৩ দিন আগে' }
-                ].map((n, i) => (
-                  <div key={i} className="bg-slate-50 dark:bg-slate-950 p-3 rounded-2xl border border-slate-100 dark:border-slate-850">
-                    <span className="text-[10px] text-slate-400 font-bold block">{n.time}</span>
-                    <h4 className="font-extrabold text-slate-900 dark:text-white mt-1">{n.title}</h4>
+              <div className="space-y-4 font-sans">
+                
+                {/* Browser Notification Controls */}
+                <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-150 dark:border-slate-850/80 space-y-3">
+                  <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-900 pb-2.5">
+                    <span className="text-sm">🔔</span>
+                    <h4 className="text-xs font-black text-slate-850 dark:text-white">ব্রাউজার নোটিফিকেশন সেটিংস (Push Settings)</h4>
                   </div>
-                ))}
+
+                  {typeof window === 'undefined' || !('Notification' in window) ? (
+                    <div className="p-3 bg-amber-500/10 text-amber-600 rounded-xl text-[11px] font-bold">
+                      ⚠️ দুঃখিত, আপনার ব্রাউজারটি Native নোটিফিকেশন সাপোর্ট করে না। অনুগ্রহ করে ক্রোম (Chrome) বা এজ (Edge) ব্রাউজার ব্যবহার করুন।
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {notifPermission === 'granted' ? (
+                        <>
+                          <div className="flex items-start gap-2 bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/20">
+                            <span className="text-emerald-500 text-xs shrink-0 mt-0.5">✔</span>
+                            <div className="space-y-0.5">
+                              <span className="text-[11px] font-black text-emerald-600 dark:text-emerald-400 block">নোটিফিকেশন সফলভাবে সক্রিয় রয়েছে!</span>
+                              <span className="text-[10px] text-slate-450 dark:text-slate-500 block leading-tight font-semibold">
+                                আমাদের স্বয়ংক্রিয় পুশ অ্যালার্ট সিস্টেম চালু আছে। আপনি সাইটটি ভিজিট করার পর থেকে প্রতি ৬০ সেকেন্ডে এবং যেকোনো নতুন আপডেট এলে স্বয়ংক্রিয় নোটিফিকেশন পাবেন।
+                              </span>
+                            </div>
+                          </div>
+                          
+                          <button
+                            onClick={() => {
+                              const item = getRandomNotification();
+                              triggerPushNotification(item.title, item.body);
+                            }}
+                            className="w-full py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-[11px] font-black transition-all shadow-md text-center cursor-pointer cursor-pointer flex items-center justify-center gap-1.5"
+                          >
+                            <span>🔔 পরীক্ষামূলক নোটিফিকেশন পাঠান (Send Test)</span>
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex items-start gap-2 bg-rose-500/10 p-3 rounded-xl border border-rose-500/20">
+                            <span className="text-rose-500 text-xs shrink-0 mt-0.5">✖</span>
+                            <div className="space-y-0.5">
+                              <span className="text-[11px] font-black text-rose-500 dark:text-rose-400 block">নোটিফিকেশন অনুমতি এখনো দেওয়া হয়নি</span>
+                              <span className="text-[10px] text-slate-450 dark:text-slate-500 block leading-tight font-semibold">
+                                নতুন লাইভ মক টেস্ট, গুরুত্বপূর্ণ জিকের প্রশ্নপত্র এবং অফিশিয়াল নিয়োগের অ্যাডমিট কার্ডের আপডেট মিস না করতে ব্রাউজার নোটিফিকেশন অনুমতি দিন।
+                              </span>
+                            </div>
+                          </div>
+
+                          <button
+                            onClick={async () => {
+                              const permission = await requestNotificationPermission();
+                              setNotifPermission(permission);
+                              triggerPushNotification(
+                                "WBMockTest.in 🔔", 
+                                "অভিনন্দন! ব্রাউজার নোটিফিকেশন সফলভাবে সক্রিয় করা হয়েছে।"
+                              );
+                            }}
+                            className="w-full py-2.5 bg-yellow-400 hover:bg-yellow-300 text-slate-950 rounded-xl text-[11px] font-black transition-all shadow-md text-center cursor-pointer flex items-center justify-center gap-1.5"
+                          >
+                            <span>🔔 নোটিফিকেশন চালু করুন (Allow Notification)</span>
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* HISTORIC OFFICIAL ALERTS */}
+                <div className="space-y-2">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block px-1">অফিশিয়াল নোটিফিকেশন বোর্ড</span>
+                  {[
+                    { title: 'নতুন ৫টি মক টেস্ট সিরিজ যুক্ত করা হয়েছে', time: '২ ঘণ্টা আগে' },
+                    { title: 'WBCS পরীক্ষার স্পেশাল পেপার আপডেট সম্পূর্ণ', time: '১ দিন আগে' },
+                    { title: 'WBMockTest.in মেম্বারশিপে ২০% বর্ষাকালীন ডিসকাউন্ট', time: '৩ দিন আগে' }
+                  ].map((n, i) => (
+                    <div key={i} className="bg-slate-50 dark:bg-slate-950 p-3 rounded-2xl border border-slate-100 dark:border-slate-850">
+                      <span className="text-[10px] text-slate-400 font-bold block">{n.time}</span>
+                      <h4 className="font-extrabold text-slate-900 dark:text-white mt-1 leading-snug">{n.title}</h4>
+                    </div>
+                  ))}
+                </div>
+
               </div>
             )}
           </div>
@@ -1000,7 +1146,6 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
                   { id: 'results', label: 'GK & Current Affairs', icon: Zap },
                   { id: 'performance', label: 'পারফরম্যান্স ও স্কোর', icon: BarChart2 },
                   { id: 'question-bank', label: 'প্রশ্ন ব্যাংক ডিরেক্টরি', icon: HelpCircle },
-                  { id: 'profile', label: 'আমার প্রোফাইল', icon: User },
                 ].map((item) => {
                   const Icon = item.icon;
                   const isActive = currentView === item.id || 
@@ -1092,22 +1237,6 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
                 </div>
 
                 <div className="flex items-center gap-3.5">
-                  {/* Streak widget */}
-                  {streakCount !== undefined && (
-                    <div className="flex items-center gap-1.5 px-3 py-2 bg-orange-50 dark:bg-orange-950/30 text-orange-600 dark:text-orange-400 rounded-xl border border-orange-200/20 text-xs font-black shadow-sm select-none">
-                      <span className="text-sm">🔥</span>
-                      <span>স্ট্রিক: {streakCount} দিন</span>
-                    </div>
-                  )}
-
-                  {/* Points widget */}
-                  {userPoints !== undefined && (
-                    <div className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 rounded-xl border border-amber-200/20 text-xs font-black shadow-sm select-none">
-                      <span className="text-sm">🪙</span>
-                      <span>{userPoints} XP</span>
-                    </div>
-                  )}
-
                   {/* Desktop Notification Bell */}
                   <button
                     onClick={() => {
@@ -1173,103 +1302,121 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
                   </div>
                 )}
 
-        {/* Sidebar Drawer slide-over menu */}
-        <SidebarDrawer 
-          isOpen={isSidebarOpen}
-          onClose={() => setIsSidebarOpen(false)}
-          currentView={currentView}
-          setView={setView}
-          theme={theme}
-          setTheme={handleToggleTheme}
-          isPremiumUser={isPremiumUser}
-          onOpenSyllabus={() => setActiveModal('syllabus')}
-          onOpenJobNews={() => {
-            setView('home');
-            setTimeout(() => {
-              const el = document.getElementById('latest-jobs-news');
-              if (el) {
-                el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              }
-            }, 150);
-          }}
-          onOpenPremium={() => setView('premium')}
-          firebaseUser={firebaseUser}
-          isLoggingIn={isLoggingIn}
-          authError={authError}
-          onGoogleLogin={handleGoogleLogin}
-          onDemoLogin={handleDemoLogin}
-          onSignOut={handleSignOut}
-        />
+                {/* Sidebar Drawer slide-over menu */}
+                <SidebarDrawer 
+                  isOpen={isSidebarOpen}
+                  onClose={() => setIsSidebarOpen(false)}
+                  currentView={currentView}
+                  setView={setView}
+                  theme={theme}
+                  setTheme={handleToggleTheme}
+                  isPremiumUser={isPremiumUser}
+                  onOpenSyllabus={() => setActiveModal('syllabus')}
+                  onOpenJobNews={() => {
+                    setView('home');
+                    setTimeout(() => {
+                      const el = document.getElementById('latest-jobs-news');
+                      if (el) {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }
+                    }, 150);
+                  }}
+                  onOpenPremium={() => setView('premium')}
+                  firebaseUser={firebaseUser}
+                  isLoggingIn={isLoggingIn}
+                  authError={authError}
+                  onGoogleLogin={handleGoogleLogin}
+                  onDemoLogin={handleDemoLogin}
+                  onSignOut={handleSignOut}
+                />
 
-        {/* Dynamic Meta modal component */}
-        {renderModal()}
+                {/* Dynamic Meta modal component */}
+                {renderModal()}
 
-        {/* VIEW DETECTOR COORDINATOR */}
-        <main className="p-4 space-y-5 animate-fadeIn">
-          
-          {/* VIEW 1: HOMEPAGE VIEW */}
-          {currentView === 'home' && (
-            <div className="space-y-5">
-              {/* Slider */}
-              <HeroSlider 
-                onCtaClick={(dest) => setView(dest)} 
-                theme={theme}
-              />
+                {/* Floating Browser Notification Prompt System */}
+                <NotificationPrompt />
 
-              {/* Quick interactive grid */}
-              <QuickAccess 
-                setView={setView} 
-                onOpenPremium={() => setView('premium')}
-                onOpenAdmitCard={() => setActiveModal('admit-card')}
-                onOpenCurrentAffairs={() => setActiveModal('current-affairs')}
-                onOpenPreviousQuestions={() => setActiveModal('previous-papers')}
-                onOpenSyllabus={() => setActiveModal('syllabus')}
-              />
+                {/* Custom Browser Notification Toast Fallback (so it's guaranteed to be seen everywhere, including iframes) */}
+                <NotificationToast toast={activeToast} onClose={() => setActiveToast(null)} />
 
-              {/* Job recruitments announcements board */}
-              <div id="latest-jobs-news" className="scroll-mt-4">
-                {showAllJobs ? (
-                  <div className="space-y-4 animate-fadeIn">
-                    <button 
-                      onClick={() => setShowAllJobs(false)}
-                      className="flex items-center gap-2 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-full px-4 py-2 text-sm font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-sm"
-                    >
-                      <ArrowLeft className="w-4 h-4 ml-1" /> ফিরে যান
-                    </button>
-                    <JobNotifications jobs={jobs} />
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <GovtJobCategories 
-                      onViewCentralJobs={() => setView('job-list')} 
-                      onViewStateJobs={() => setView('state-job-list')} 
-                      onJobClick={() => setView('job-details')}
-                      onViewPostList={(title) => {
-                        setPostListTitle(title);
-                        setView('post-list');
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
+                {/* VIEW DETECTOR COORDINATOR */}
+                <main className="p-4 space-y-5 animate-fadeIn">
 
-              {/* Success testimonies slider */}
-              <Testimonials stories={successStories} />
+                  {/* VIEW 1: HOMEPAGE VIEW */}
+                  {currentView === 'home' && (
+                    <div className="space-y-5">
+                      {/* Slider */}
+                      <HeroSlider 
+                        onCtaClick={(dest) => setView(dest)} 
+                        theme={theme}
+                      />
 
-              {/* Live server metrics */}
-              <LiveStats />
+                      {/* Quick interactive grid */}
+                      <QuickAccess 
+                        setView={setView} 
+                        onOpenPremium={() => setView('premium')}
+                        onOpenAdmitCard={() => setActiveModal('admit-card')}
+                        onOpenCurrentAffairs={() => setActiveModal('current-affairs')}
+                        onOpenPreviousQuestions={() => setActiveModal('previous-papers')}
+                        onOpenSyllabus={() => setActiveModal('syllabus')}
+                      />
 
+                      {/* Job recruitments announcements board */}
+                      <div id="latest-jobs-news" className="scroll-mt-4">
+                        {showAllJobs ? (
+                          <div className="space-y-4 animate-fadeIn">
+                            <button 
+                              onClick={() => setShowAllJobs(false)}
+                              className="flex items-center gap-2 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-full px-4 py-2 text-sm font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-sm cursor-pointer"
+                            >
+                              <ArrowLeft className="w-4 h-4 ml-1" /> ফিরে যান
+                            </button>
+                            <JobNotifications jobs={jobs} />
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            <GovtJobCategories 
+                              onViewCentralJobs={() => setView('job-list')} 
+                              onViewStateJobs={() => setView('state-job-list')} 
+                              onJobClick={() => setView('job-details')}
+                              onViewPostList={(title) => {
+                                setPostListTitle(title);
+                                setView('post-list');
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
 
+                      {/* Success testimonies slider */}
+                      <Testimonials stories={successStories} />
 
-              {/* Footer */}
-              <div className="text-center py-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
-                <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 block">WBMockTest.in © 2026</span>
-                <p className="text-[9px] text-slate-400 max-w-[280px] mx-auto leading-relaxed">
-                  পশ্চিমবঙ্গে সরকারি চাকরির প্রস্তুতির সেরা online প্ল্যাটফর্ম।
-                </p>
-              </div>
-            </div>
-          )}
+                      {/* Live server metrics */}
+                      <LiveStats />
+
+                      {/* Footer with Info Links */}
+                      <div className="text-center py-6 border-t border-slate-150/40 dark:border-slate-800 space-y-3 font-sans">
+                        <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 block">WBMockTest.in © 2026</span>
+                        <p className="text-[9.5px] text-slate-400 dark:text-slate-500 max-w-[340px] mx-auto leading-relaxed font-semibold">
+                          WBMockTest.in পশ্চিমবঙ্গের সরকারি চাকরির প্রস্তুতির সেরা সম্পূর্ণ ফ্রি অনলাইন প্ল্যাটফর্ম।
+                        </p>
+                        
+                        {/* Info Links Grid */}
+                        <div className="flex flex-wrap items-center justify-center gap-x-3.5 gap-y-1.5 pt-1">
+                          <button onClick={() => setView('about')} className="text-[9.5px] font-black text-slate-500 hover:text-blue-650 dark:hover:text-blue-400 transition-colors cursor-pointer">আমাদের সম্পর্কে</button>
+                          <span className="text-slate-300 dark:text-slate-800 text-[10px]">•</span>
+                          <button onClick={() => setView('contact')} className="text-[9.5px] font-black text-slate-500 hover:text-blue-650 dark:hover:text-blue-400 transition-colors cursor-pointer">যোগাযোগ</button>
+                          <span className="text-slate-300 dark:text-slate-800 text-[10px]">•</span>
+                          <button onClick={() => setView('privacy')} className="text-[9.5px] font-black text-slate-500 hover:text-blue-650 dark:hover:text-blue-400 transition-colors cursor-pointer">গোপনীয়তা নীতি</button>
+                          <span className="text-slate-300 dark:text-slate-800 text-[10px]">•</span>
+                          <button onClick={() => setView('disclaimer')} className="text-[9.5px] font-black text-slate-500 hover:text-blue-650 dark:hover:text-blue-400 transition-colors cursor-pointer">দাবিত্যাগ</button>
+                          <span className="text-slate-300 dark:text-slate-800 text-[10px]">•</span>
+                          <button onClick={() => setView('terms')} className="text-[9.5px] font-black text-slate-500 hover:text-blue-650 dark:hover:text-blue-400 transition-colors cursor-pointer">শর্তাবলী</button>
+                        </div>
+                      </div>
+
+                    </div>
+                  )}
 
           {/* VIEW 2: MOCK TESTS EXPLORE SCREEN */}
           {currentView === 'mock-tests' && (
@@ -1304,7 +1451,7 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
                     isPremiumUser={isPremiumUser}
                     purchasedSeries={purchasedSeries}
                     onReqPremiumUpgrade={() => {
-                      const matchingPost = posts.find(p => p.id === test.postId);
+                      const matchingPost = posts?.find(p => p && p.id === test.postId);
                       if (matchingPost) {
                         setCouponCode('');
                         setCouponDiscount(0);
@@ -1373,7 +1520,7 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
               <ResultDetails 
                 result={currentResult}
                 onRetake={() => {
-                  const testToRetake = mockTests.find(t => t.id === currentResult.testId);
+                  const testToRetake = mockTests?.find(t => t && t.id === currentResult?.testId);
                   if (testToRetake) {
                     setActiveTest(testToRetake);
                     setView('test-running');
@@ -1458,6 +1605,37 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
                 onGoBack={() => setView('home')} 
                 onStartTest={handleStartTest}
                 onOpenStudyPlan={() => setView('study-plan')}
+              />
+            </div>
+          )}
+
+          {/* VIEW DAILY CURRENT AFFAIRS */}
+          {currentView === 'daily-ca' && (
+            <div className="animate-fadeIn font-sans pb-16">
+              <DailyCurrentAffairs onEarnPoints={handleEarnDailyQuizPoints} />
+            </div>
+          )}
+
+          {/* VIEW STATIC LEGAL & ABOUT PAGES */}
+          {(currentView === 'about' || currentView === 'contact' || currentView === 'privacy' || currentView === 'disclaimer' || currentView === 'terms') && (
+            <div className="animate-fadeIn font-sans pb-16">
+              <InfoPages 
+                initialTab={currentView} 
+                onGoBack={() => setView('home')} 
+                setView={setView} 
+              />
+            </div>
+          )}
+
+          {/* VIEW DYNAMIC SEO EXAM PAGES */}
+          {currentView === 'exam-page' && (
+            <div className="animate-fadeIn font-sans pb-16">
+              <ExamSEOPage 
+                examSlug={selectedExamSlug} 
+                mockTests={mockTests} 
+                onStartTest={handleStartTest} 
+                onGoBack={() => setView('home')} 
+                setView={setView}
               />
             </div>
           )}

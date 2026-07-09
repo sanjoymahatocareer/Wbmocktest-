@@ -1,7 +1,8 @@
 import React from 'react';
 import { 
   X, Home, BookOpen, HelpCircle, Award, User, Crown, 
-  FileText, Briefcase, ChevronRight, LogIn, LogOut, Shield, Settings, HeadphonesIcon, Bell, Zap, Newspaper
+  FileText, Briefcase, ChevronRight, LogIn, LogOut, Shield, Settings, HeadphonesIcon, Bell, Zap, Newspaper,
+  Info, Phone, Scale
 } from 'lucide-react';
 import { ViewType } from '../types';
 import { safeSessionStorage } from '../lib/storage';
@@ -70,12 +71,6 @@ export default function SidebarDrawer({
       label: 'ডেইলি কারেন্ট অ্যাফেয়ার্স', 
       icon: Newspaper, 
       action: () => { setView('daily-ca'); onClose(); } 
-    },
-    { 
-      id: 'profile', 
-      label: 'আমার প্রোফাইল', 
-      icon: User, 
-      action: () => { setView('profile'); onClose(); } 
     },
   ];
 
@@ -246,16 +241,77 @@ export default function SidebarDrawer({
             </button>
           </div>
 
+          {/* Info & Policy Section */}
+          <div className="space-y-1">
+            <span className="text-[11px] text-slate-400 font-bold mb-2.5 block px-2 mt-4">প্রয়োজনীয় তথ্য ও নীতি</span>
+            
+            <button
+               onClick={() => { setView('about'); onClose(); }}
+               className="w-full flex items-center px-3 py-2.5 rounded-[12px] text-[12.5px] font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all cursor-pointer"
+            >
+               <div className="flex items-center gap-3">
+                 <Info className="w-4 h-4 text-slate-400" />
+                 <span>আমাদের সম্পর্কে</span>
+               </div>
+            </button>
+
+            <button
+               onClick={() => { setView('contact'); onClose(); }}
+               className="w-full flex items-center px-3 py-2.5 rounded-[12px] text-[12.5px] font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all cursor-pointer"
+            >
+               <div className="flex items-center gap-3">
+                 <Phone className="w-4 h-4 text-slate-400" />
+                 <span>যোগাযোগ করুন</span>
+               </div>
+            </button>
+
+            <button
+               onClick={() => { setView('privacy'); onClose(); }}
+               className="w-full flex items-center px-3 py-2.5 rounded-[12px] text-[12.5px] font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all cursor-pointer"
+            >
+               <div className="flex items-center gap-3">
+                 <Shield className="w-4 h-4 text-slate-400" />
+                 <span>গোপনীয়তা নীতি</span>
+               </div>
+            </button>
+
+            <button
+               onClick={() => { setView('disclaimer'); onClose(); }}
+               className="w-full flex items-center px-3 py-2.5 rounded-[12px] text-[12.5px] font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all cursor-pointer"
+            >
+               <div className="flex items-center gap-3">
+                 <Scale className="w-4 h-4 text-slate-400" />
+                 <span>দাবিত্যাগ</span>
+               </div>
+            </button>
+
+            <button
+               onClick={() => { setView('terms'); onClose(); }}
+               className="w-full flex items-center px-3 py-2.5 rounded-[12px] text-[12.5px] font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all cursor-pointer"
+            >
+               <div className="flex items-center gap-3">
+                 <Scale className="w-4 h-4 text-slate-400" />
+                 <span>শর্তাবলী</span>
+               </div>
+            </button>
+          </div>
+
         </div>
 
         {/* Bottom Section */}
         <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-950 flex items-center justify-between">
-           <button className="flex items-center gap-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 font-bold text-[12px] transition-colors py-2 px-1">
+           <button 
+              onClick={() => { setView('contact'); onClose(); }}
+              className="flex items-center gap-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 font-bold text-[12px] transition-colors py-2 px-1 cursor-pointer"
+           >
               <HeadphonesIcon className="w-[18px] h-[18px]" /> সাপোর্ট সেন্টার
            </button>
            <div className="w-px h-4 bg-slate-200 dark:bg-slate-800"></div>
-           <button className="flex items-center gap-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 font-bold text-[12px] transition-colors py-2 px-1">
-              <Settings className="w-[18px] h-[18px]" /> সেটিংস
+           <button 
+              onClick={() => { setView('contact'); onClose(); }}
+              className="flex items-center gap-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 font-bold text-[12px] transition-colors py-2 px-1 cursor-pointer"
+           >
+              <Settings className="w-[18px] h-[18px]" /> যোগাযোগ
            </button>
         </div>
 

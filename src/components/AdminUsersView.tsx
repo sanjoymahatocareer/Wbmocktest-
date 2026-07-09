@@ -350,14 +350,14 @@ export default function AdminUsersView({
 
                   <div className="flex justify-between items-center pt-2 border-t border-slate-100">
                     <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded ${
-                      txn.status === 'PAID' 
+                      (txn.status || '').toUpperCase() === 'PAID' || (txn.status || '').toUpperCase() === 'SUCCESS'
                         ? 'bg-emerald-100 text-emerald-800' 
                         : 'bg-amber-100 text-amber-800 animate-pulse'
                     }`}>
-                      {txn.status === 'PAID' ? 'APPROVED' : 'PENDING APPROVAL'}
+                      {(txn.status || '').toUpperCase() === 'PAID' || (txn.status || '').toUpperCase() === 'SUCCESS' ? 'APPROVED' : 'PENDING APPROVAL'}
                     </span>
 
-                    {txn.status === 'PENDING' && (
+                    {((txn.status || '').toUpperCase() === 'PENDING' || (txn.status || '').toUpperCase() === 'UPI_PENDING') && (
                       <button 
                         onClick={() => handleApproveUPI(txn.id)}
                         className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black px-3 py-1 rounded-lg shadow-sm"

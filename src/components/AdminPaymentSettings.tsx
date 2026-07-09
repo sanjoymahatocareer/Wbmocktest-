@@ -191,8 +191,14 @@ export default function AdminPaymentSettings({ onGoBack }: AdminPaymentSettingsP
     );
   }
 
-  const pendingPayments = payments.filter(p => p.status === 'UPI_PENDING');
-  const completedPayments = payments.filter(p => p.status === 'PAID');
+  const pendingPayments = payments.filter(p => {
+    const s = (p.status || '').toUpperCase();
+    return s === 'UPI_PENDING' || s === 'PENDING';
+  });
+  const completedPayments = payments.filter(p => {
+    const s = (p.status || '').toUpperCase();
+    return s === 'PAID' || s === 'SUCCESS';
+  });
 
   return (
     <div className="bg-slate-50 min-h-screen font-sans pb-24 md:pb-6 relative w-full overflow-x-hidden md:max-w-md md:mx-auto md:shadow-2xl">

@@ -4,6 +4,7 @@ import crypto from "crypto";
 import fs from "fs";
 import { Cashfree } from "cashfree-pg";
 import { generateSitemapXml } from "./src/lib/seo";
+import webpush from "web-push";
 
 // Initialize Firebase statically with known configuration parameters
 const firebaseConfig = {
@@ -34,29 +35,57 @@ function toFirestoreJSON(obj: any) {
   return { fields };
 }
 
-function fromFirestoreJSON(doc: any) {
-  const obj: any = {};
-  if (!doc || !doc.fields) return null;
-  for (const [key, desc] of Object.entries(doc.fields as any)) {
-    const valDesc = desc as any;
-    if ("stringValue" in valDesc) {
-      const s = valDesc.stringValue;
-      if ((s.startsWith("[") && s.endsWith("]")) || (s.startsWith("{") && s.endsWith("}"))) {
-        try {
-          obj[key] = JSON.parse(s);
-          continue;
-        } catch (_) {}
-      }
-      obj[key] = s;
-    } else if ("doubleValue" in valDesc) {
-      obj[key] = Number(valDesc.doubleValue);
-    } else if ("integerValue" in valDesc) {
-      obj[key] = Number(valDesc.integerValue);
-    } else if ("booleanValue" in valDesc) {
-      obj[key] = Boolean(valDesc.booleanValue);
+function parseFirestoreValue(valDesc: any): any {
+  if (!valDesc) return null;
+  if ("stringValue" in valDesc) {
+    const s = valDesc.stringValue;
+    if ((s.startsWith("[") && s.endsWith("]")) || (s.startsWith("{") && s.endsWith("}"))) {
+      try {
+        return JSON.parse(s);
+      } catch (_) {}
     }
+    return s;
   }
-  return obj;
+  if ("doubleValue" in valDesc) {
+    return Number(valDesc.doubleValue);
+  }
+  if ("integerValue" in valDesc) {
+    return Number(valDesc.integerValue);
+  }
+  if ("booleanValue" in valDesc) {
+    return Boolean(valDesc.booleanValue);
+  }
+  if ("timestampValue" in valDesc) {
+    return valDesc.timestampValue;
+  }
+  if ("nullValue" in valDesc) {
+    return null;
+  }
+  if ("arrayValue" in valDesc) {
+    const arr = valDesc.arrayValue.values || [];
+    return arr.map((item: any) => parseFirestoreValue(item));
+  }
+  if ("mapValue" in valDesc) {
+    const fields = valDesc.mapValue.fields || {};
+    const obj: any = {};
+    for (const [key, val] of Object.entries(fields)) {
+      obj[key] = parseFirestoreValue(val);
+    }
+    return obj;
+  }
+  return null;
+}
+
+function fromFirestoreJSON(doc: any) {
+  if (!doc) return null;
+  if (doc.fields) {
+    const obj: any = {};
+    for (const [key, desc] of Object.entries(doc.fields as any)) {
+      obj[key] = parseFirestoreValue(desc);
+    }
+    return obj;
+  }
+  return parseFirestoreValue(doc);
 }
 
 class DocReferenceCompat {
@@ -166,30 +195,48 @@ class CollectionReferenceCompat {
 
   async get() {
     try {
-      const url = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/${firebaseConfig.firestoreDatabaseId}/documents/${this.collectionPath}?key=${firebaseConfig.apiKey}`;
-      const res = await fetch(url);
-      if (res.status === 404) {
-        return {
-          forEach: (callback: any) => {},
-          docs: []
-        };
+      const url = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/${firebaseConfig.firestoreDatabaseId}/documents:runQuery?key=${firebaseConfig.apiKey}`;
+      const payload: any = {
+        structuredQuery: {
+          from: [{ collectionId: this.collectionPath }]
+        }
+      };
+
+      if (this.orderField) {
+        payload.structuredQuery.orderBy = [
+          {
+            field: { fieldPath: this.orderField },
+            direction: this.orderDirection === "desc" ? "DESCENDING" : "ASCENDING"
+          }
+        ];
       }
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
       if (!res.ok) {
-        throw new Error(`Firestore REST list error: ${res.statusText}`);
+        throw new Error(`Firestore REST runQuery error: ${await res.text()}`);
       }
-      const data: any = await res.json();
+
+      const results: any = await res.json();
       let docs: any[] = [];
-      if (data.documents) {
-        docs = data.documents.map((d: any) => {
-          const flat = fromFirestoreJSON(d);
-          return {
-            exists: true,
-            id: d.name.split("/").pop(),
-            data: () => flat
-          };
-        });
+      if (Array.isArray(results)) {
+        for (const item of results) {
+          if (item.document) {
+            const d = item.document;
+            const flat = fromFirestoreJSON(d);
+            docs.push({
+              exists: true,
+              id: d.name.split("/").pop(),
+              data: () => flat
+            });
+          }
+        }
       }
-      
+
       if (this.orderField) {
         const field = this.orderField;
         const dir = this.orderDirection || "asc";
@@ -275,6 +322,119 @@ app.post("/api/admin/payment-settings", async (req, res) => {
   } catch (err: any) {
     console.error("Admin save gateway settings failed:", err);
     return res.status(500).json({ error: err.message || "Failed to save settings" });
+  }
+});
+
+// Set up Web Push VAPID credentials for real website hosting
+const PUBLIC_VAPID_KEY = process.env.VAPID_PUBLIC_KEY || "BJ5IxJpYq75xD-g78E9988941_H012976214151241249-asb_2412-ABC1_S_2452";
+const PRIVATE_VAPID_KEY = process.env.VAPID_PRIVATE_KEY || "S_u-yA89fAnM12K7Z61mB21pA978E-abc152431251A";
+
+try {
+  webpush.setVapidDetails(
+    "mailto:contact@wbmocktest.in",
+    PUBLIC_VAPID_KEY,
+    PRIVATE_VAPID_KEY
+  );
+  console.log("[Push Notification] VAPID details set successfully.");
+} catch (e) {
+  console.error("Failed to initialize VAPID details:", e);
+}
+
+// 1. Subscribe API
+app.post("/api/notifications/subscribe", async (req, res) => {
+  try {
+    const subscription = req.body;
+    if (!subscription || !subscription.endpoint) {
+      return res.status(400).json({ error: "Invalid subscription details" });
+    }
+    
+    // Hash the endpoint as docId so we don't save duplicate subscriptions for the same browser
+    const docId = crypto.createHash("md5").update(subscription.endpoint).digest("hex");
+    
+    // Save to Firestore under push_subscriptions
+    await db.collection("push_subscriptions").doc(docId).set({
+      subscription: subscription,
+      subscribedAt: new Date().toISOString()
+    }, { merge: true });
+    
+    console.log(`[Push Notification] New subscription saved for docId: ${docId}`);
+    return res.json({ success: true, message: "Subscription saved successfully" });
+  } catch (err: any) {
+    console.error("Save push subscription failed:", err);
+    return res.status(500).json({ error: err.message || "Failed to save subscription" });
+  }
+});
+
+// 2. Broadcast / Send Notification API (Can be triggered by admins or cron jobs to send remote alerts)
+app.post("/api/notifications/broadcast", async (req, res) => {
+  try {
+    const { title, body, icon, badge, url } = req.body;
+    if (!title || !body) {
+      return res.status(400).json({ error: "Title and body are required to broadcast" });
+    }
+
+    const payload = JSON.stringify({
+      title,
+      body,
+      icon: icon || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=128&auto=format&fit=crop&q=60",
+      badge: badge || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=128&auto=format&fit=crop&q=60",
+      data: { url: url || "/" }
+    });
+
+    console.log(`[Push Notification] Broadcasting to all registered subscriptions...`);
+
+    // Fetch all active subscriptions from Firestore
+    const snapshot = await db.collection("push_subscriptions").get();
+    const subscriptions: any[] = [];
+    
+    if (snapshot && snapshot.forEach) {
+      snapshot.forEach((doc: any) => {
+        const data = doc.data();
+        if (data && data.subscription) {
+          subscriptions.push({ id: doc.id, sub: data.subscription });
+        }
+      });
+    }
+
+    if (subscriptions.length === 0) {
+      return res.json({ success: true, sentCount: 0, message: "No subscribers found to send notifications to." });
+    }
+
+    let successCount = 0;
+    let failureCount = 0;
+
+    // Send push notification to all browsers
+    const sendPromises = subscriptions.map(async (item) => {
+      try {
+        await webpush.sendNotification(item.sub, payload);
+        successCount++;
+      } catch (err: any) {
+        console.error(`Failed to send push to subscription ${item.id}:`, err.message);
+        failureCount++;
+        // If the subscription has expired or is no longer valid, clean it up from database (HTTP 410 or 404)
+        if (err.statusCode === 410 || err.statusCode === 404) {
+          console.log(`[Push Notification] Subscription ${item.id} is invalid/expired. Cleaning up...`);
+          try {
+            await db.collection("push_subscriptions").doc(item.id).delete();
+          } catch (delErr) {
+            console.error(`Failed to delete expired subscription ${item.id}:`, delErr);
+          }
+        }
+      }
+    });
+
+    await Promise.all(sendPromises);
+
+    return res.json({
+      success: true,
+      sentCount: subscriptions.length,
+      successCount,
+      failureCount,
+      message: `Successfully broadcasted to ${successCount} users. Cleaned up ${failureCount} expired/invalid subscribers.`
+    });
+  } catch (err: any) {
+    console.error("Notification broadcast failed:", err);
+    return res.status(500).json({ error: err.message || "Failed to broadcast notifications" });
   }
 });
 

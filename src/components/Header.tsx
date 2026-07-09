@@ -38,9 +38,9 @@ export default function Header({
         borderColor: theme === 'light' ? 'rgba(226, 232, 240, 0.7)' : 'rgba(255, 255, 255, 0.08)'
       }}
     >
-      <div className="max-w-md mx-auto px-4 h-16 flex items-center justify-between">
+      <div className="max-w-md mx-auto px-4 h-16 flex items-center justify-between relative">
         {isTestingMode ? (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 z-10">
             <button 
               onClick={() => {
                 if (window.confirm('আপনি কি সত্যিই মক টেস্টটি বন্ধ করতে চান?')) {
@@ -58,54 +58,32 @@ export default function Header({
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-2">
+          <>
             <button 
               onClick={onOpenSidebar}
-              className="p-1 rounded-xl text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white transition-all active:scale-95 cursor-pointer"
+              className="p-1 rounded-xl text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white transition-all active:scale-95 cursor-pointer z-10"
               title="মেনু"
             >
               <Menu className="w-6 h-6" />
             </button>
-            <div className="flex items-center gap-1 cursor-pointer select-none ml-1" onClick={() => setView('home')}>
-              <div>
-                <div className="flex items-baseline leading-none">
-                  <span className="text-xl md:text-2xl font-black tracking-tight font-display bg-gradient-to-r from-indigo-500 via-purple-600 to-pink-500 bg-clip-text text-transparent drop-shadow-sm">
-                    WB Mock Test
-                  </span>
-                </div>
-                <span className="text-[8px] text-slate-500 dark:text-slate-400 font-black tracking-tight block -mt-0.5">
-                  সফলতার পথে আমরা
+            
+            <div 
+              className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center justify-center cursor-pointer select-none" 
+              onClick={() => setView('home')}
+            >
+              <div className="flex items-baseline leading-none justify-center">
+                <span className="text-xl md:text-2xl font-black tracking-tight font-display bg-gradient-to-r from-indigo-500 via-purple-600 to-pink-500 bg-clip-text text-transparent drop-shadow-sm">
+                  WB Mock Test
                 </span>
               </div>
+              <span className="text-[8px] text-slate-500 dark:text-slate-400 font-black tracking-tight block -mt-0.5 text-center">
+                সফলতার পথে আমরা
+              </span>
             </div>
-          </div>
+          </>
         )}
 
-        <div className="flex items-center gap-1.5 font-sans">
-          {/* Flame streak indicator */}
-          {!isTestingMode && streakCount !== undefined && (
-            <div 
-              onClick={() => setView('daily-ca')}
-              className="flex items-center gap-1 px-2 py-1 bg-orange-50 dark:bg-orange-950/30 text-orange-600 dark:text-orange-400 rounded-xl border border-orange-200/25 active:scale-95 transition-all text-[11px] font-black cursor-pointer shadow-sm hover:bg-orange-100/40 select-none animate-fadeIn"
-              title="ধারাবাহিক পড়াশোনার মাইলস্টোন (স্ট্রিক)"
-            >
-              <span>🔥</span>
-              <span className="font-sans font-black">{streakCount}</span>
-            </div>
-          )}
-
-          {/* Points indicator */}
-          {!isTestingMode && points !== undefined && (
-            <div 
-              onClick={() => setView('daily-ca')}
-              className="flex items-center gap-1 px-2.5 py-1 bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 rounded-xl border border-amber-200/25 active:scale-95 transition-all text-[11px] font-black cursor-pointer shadow-sm hover:bg-amber-100/40 select-none animate-fadeIn"
-              title="আপনার সঞ্চিত এক্সপেরিযেন্স পয়েন্ট (XP)"
-            >
-              <span>🪙</span>
-              <span className="font-sans font-black">{points}</span>
-            </div>
-          )}
-
+        <div className="flex items-center gap-1.5 font-sans z-10">
           {/* Theme Toggle */}
           <button
             onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}

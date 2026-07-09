@@ -402,7 +402,7 @@ export default function AdminPaymentsDashboard({ posts, users, onBack }: AdminPa
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="text-[10px] font-black text-slate-800 leading-none truncate max-w-[120px]">{tx.userName || 'পরীক্ষার্থী'}</span>
                         <span className={`text-[8.5px] font-extrabold px-1 rounded ${
-                          tx.status === 'PAID' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                          (tx.status || '').toUpperCase() === 'PAID' || (tx.status || '').toUpperCase() === 'SUCCESS' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
                         }`}>{tx.status}</span>
                       </div>
                       <p className="text-[9px] text-slate-400 font-bold truncate">{tx.item}</p>

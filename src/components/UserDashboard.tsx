@@ -255,7 +255,7 @@ export default function UserDashboard({
         </div>
         
         <button 
-          onClick={() => setActiveTab('profile')}
+          onClick={() => setActiveTab('performance')}
           className="w-10 h-10 rounded-full border-2 border-blue-500/20 hover:border-blue-500 p-0.5 overflow-hidden transition-all relative shrink-0 cursor-pointer"
         >
           {firebaseUser?.photoURL ? (
@@ -320,8 +320,7 @@ export default function UserDashboard({
           { id: 'home', label: 'ড্যাশবোর্ড', icon: Trophy },
           { id: 'my-tests', label: 'আমার টেস্ট', icon: BookOpen },
           { id: 'results', label: 'ফলাফল', icon: Award },
-          { id: 'performance', label: 'পারফরম্যান্স', icon: BarChart2 },
-          { id: 'profile', label: 'প্রোফাইল', icon: User }
+          { id: 'performance', label: 'পারফরম্যান্স', icon: BarChart2 }
         ].map(tab => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;

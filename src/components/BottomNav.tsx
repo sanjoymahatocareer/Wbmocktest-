@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, BookOpen, User, Newspaper } from 'lucide-react';
+import { Home, BookOpen, Newspaper, Award } from 'lucide-react';
 import { ViewType } from '../types';
 
 interface BottomNavProps {
@@ -27,9 +27,9 @@ export default function BottomNav({ currentView, setView }: BottomNavProps) {
       icon: Newspaper
     },
     {
-      view: 'profile' as ViewType,
-      label: 'প্রোফাইল',
-      icon: User
+      view: 'my-tests' as ViewType,
+      label: 'আমার টেস্ট',
+      icon: Award
     }
   ];
 
@@ -42,7 +42,7 @@ export default function BottomNav({ currentView, setView }: BottomNavProps) {
           const isActive = currentView === item.view || 
             (item.view === 'mock-tests' && currentView === 'test-running') ||
             (item.view === 'daily-ca' && currentView === 'news-details') ||
-            (item.view === 'profile' && (currentView === 'my-tests' || currentView === 'results' || currentView === 'performance' || currentView === 'test-result'));
+            (item.view === 'my-tests' && (currentView === 'results' || currentView === 'performance' || currentView === 'profile' || currentView === 'test-result'));
 
           return (
             <button

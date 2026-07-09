@@ -21,17 +21,49 @@ service cloud.firestore {
 
     // Subscriptions collection rules
     match /subscriptions/{userId} {
-      allow read: if isSignedIn() && (request.auth.uid == userId || exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
-      allow write: if isSignedIn();
+      allow read, write: if true;
     }
 
     // Payments collection rules
     match /payments/{paymentId} {
-      allow read, write: if isSignedIn();
+      allow read, write: if true;
     }
 
     // Settings collection rules
     match /settings/{document=**} {
+      allow read, write: if true;
+    }
+
+    // Server-managed collections
+    match /purchases/{purchaseId} {
+      allow read, write: if true;
+    }
+
+    match /payment_orders/{orderId} {
+      allow read, write: if true;
+    }
+
+    match /payment_transactions/{transactionId} {
+      allow read, write: if true;
+    }
+
+    match /audit_logs/{auditId} {
+      allow read, write: if true;
+    }
+
+    match /webhook_events/{eventId} {
+      allow read, write: if true;
+    }
+
+    match /coupons/{couponId} {
+      allow read, write: if true;
+    }
+
+    match /mock_test_series/{seriesId} {
+      allow read, write: if true;
+    }
+
+    match /push_subscriptions/{subId} {
       allow read, write: if true;
     }
 
